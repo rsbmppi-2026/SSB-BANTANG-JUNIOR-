@@ -3,7 +3,7 @@ import { supabase, isSupabaseConfigured } from './supabase';
 
 // General hook for managing data with Supabase and localStorage fallback
 export function useCMSData<T extends { id: string }>(collectionName: string, initialData: T[]) {
-  const [data, setData] = useState<T[]>([]);
+  const [data, setData] = useState<T[]>(initialData);
   const [isLoading, setIsLoading] = useState(true);
 
   const checkSupabase = () => {
@@ -12,92 +12,125 @@ export function useCMSData<T extends { id: string }>(collectionName: string, ini
 
   useEffect(() => {
     const loadData = async () => {
-      setIsLoading(true);
-      if (checkSupabase()) {
-        const { data: supaData, error } = await supabase.from(collectionName).select('*').order('created_at', { ascending: false });
-        if (!error && supaData) {
-          setData(supaData as T[]);
-          setIsLoading(false);
-          return;
+      // 1. Instant load from local cache
+      try {
+        const saved = localStorage.getItem(`cms_${collectionName}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setData(parsed);
+          }
         }
-      }
-      // Fallback
-      const saved = localStorage.getItem(`cms_${collectionName}`);
-      if (saved) {
-        setData(JSON.parse(saved));
-      } else {
-        setData(initialData);
-        localStorage.setItem(`cms_${collectionName}`, JSON.stringify(initialData));
+      } catch (e) {
+        console.error(`Failed to load local cache for ${collectionName}:`, e);
       }
       setIsLoading(false);
+
+      // 2. Background fetch from Supabase
+      if (checkSupabase()) {
+        try {
+          const { data: supaData, error } = await supabase
+            .from(collectionName)
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (!error && supaData) {
+            setData(supaData as T[]);
+            try {
+              localStorage.setItem(`cms_${collectionName}`, JSON.stringify(supaData));
+            } catch (e) {
+              console.warn('Failed to cache Supabase data locally');
+            }
+          } else if (error) {
+             if (!error.message.includes('Could not find the table')) {
+              console.warn(`Supabase fetch error for ${collectionName}:`, error.message);
+            }
+          }
+        } catch (err) {
+          console.warn(`Exception fetching Supabase data for ${collectionName}:`, err);
+        }
+      }
     };
     loadData();
   }, [collectionName]);
 
-  const addItems = async (newItem: Omit<T, 'id'>) => {
-    const item = { ...newItem, id: Math.random().toString(36).substr(2, 9) } as unknown as T;
+  const addItems = async (newItem: any) => {
+    // Basic sanitization: Ensure id exists
+    const item = { ...newItem, id: newItem.id || Math.random().toString(36).substring(2, 11) };
     
-    if (checkSupabase()) {
-      const { error } = await supabase.from(collectionName).insert([item]);
-      if (!error) {
-        setData(prev => [item, ...prev]);
-        return;
-      }
-    }
-    
-    // Fallback
+    // Optimistic Update
     setData(prev => {
       const updated = [item, ...prev];
       try {
         localStorage.setItem(`cms_${collectionName}`, JSON.stringify(updated));
       } catch (e) {
-        console.error('Storage quota exceeded, unable to save to localStorage', e);
-        // Continue using in-memory state
+        console.error('Storage error:', e);
       }
       return updated;
     });
+
+    if (checkSupabase()) {
+      try {
+        // Sanitize for Supabase: Lowercase keys to match DB schema
+        const sanitizedItem: any = {};
+        Object.keys(item).forEach(key => {
+          sanitizedItem[key.toLowerCase()] = item[key];
+        });
+        const { error } = await supabase.from(collectionName).insert([sanitizedItem]);
+        if (error) throw error;
+      } catch (err) {
+        console.error(`Failed to sync add to ${collectionName}:`, err);
+      }
+    }
   };
 
   const updateItem = async (id: string, updatedFields: any) => {
-    if (checkSupabase()) {
-      const { error } = await supabase.from(collectionName).update(updatedFields).eq('id', id);
-      if (!error) {
-        setData(prev => prev.map(item => item.id === id ? { ...item, ...updatedFields } : item));
-        return;
-      }
-    }
-
-    // Fallback
+    // Optimistic Update
     setData(prev => {
       const updated = prev.map(item => item.id === id ? { ...item, ...updatedFields } : item);
       try {
         localStorage.setItem(`cms_${collectionName}`, JSON.stringify(updated));
       } catch (e) {
-        console.error('Storage quota exceeded, unable to save to localStorage', e);
+        console.error('Storage error:', e);
       }
       return updated;
     });
+
+    if (checkSupabase()) {
+      try {
+        // Sanitize for Supabase: Lowercase keys
+        const sanitizedFields: any = {};
+        Object.keys(updatedFields).forEach(key => {
+          sanitizedFields[key.toLowerCase()] = updatedFields[key];
+        });
+        const { error } = await supabase.from(collectionName).update(sanitizedFields).eq('id', id);
+        if (error) throw error;
+      } catch (err) {
+        console.error(`Failed to sync update to ${collectionName}:`, err);
+      }
+    }
   };
 
   const deleteItem = async (id: string) => {
-    if (checkSupabase()) {
-      const { error } = await supabase.from(collectionName).delete().eq('id', id);
-      if (!error) {
-        setData(prev => prev.filter(item => item.id !== id));
-        return;
-      }
-    }
-
-    // Fallback
+    // Optimistic Update
     setData(prev => {
       const updated = prev.filter(item => item.id !== id);
       try {
         localStorage.setItem(`cms_${collectionName}`, JSON.stringify(updated));
       } catch (e) {
-        console.error('Storage quota exceeded, unable to save to localStorage', e);
+        console.error('Storage error:', e);
       }
       return updated;
     });
+
+    if (checkSupabase()) {
+      try {
+        const { error } = await supabase.from(collectionName).delete().eq('id', id);
+        if (error) throw error;
+      } catch (err) {
+        console.error(`Failed to sync delete from ${collectionName}:`, err);
+      }
+    }
   };
 
   return { data, addItems, updateItem, deleteItem, isLoading };

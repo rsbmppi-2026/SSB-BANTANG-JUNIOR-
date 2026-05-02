@@ -18,11 +18,18 @@ import {
 
 import { useAuth, useSettings } from '../App';
 import { useEffect } from 'react';
+import { academyPrograms } from '../data/programs';
+import { useCMSData } from '../lib/store';
+import { Edit2 } from 'lucide-react';
 
 export default function LandingPage() {
   const { appName, logoUrl, heroBgUrl } = useSettings();
   const { user } = useAuth();
+  const { data: programs, isLoading } = useCMSData('programs', academyPrograms);
   const navigate = useNavigate();
+
+  // Fallback to initial data if empty
+  const activePrograms = (programs && programs.length > 0) ? programs : academyPrograms;
 
   useEffect(() => {
     if (user) return;
@@ -34,7 +41,7 @@ export default function LandingPage() {
   }, [navigate, user]);
   
   return (
-    <div className="bg-[var(--color-surface)]">
+    <div className="bg-[var(--color-navy-dark)]">
       {/* Navbar */}
       <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/20 backdrop-blur-lg">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -46,7 +53,6 @@ export default function LandingPage() {
             )}
             <div className="flex flex-col">
               <span className="font-display font-bold text-lg tracking-tighter text-[var(--color-primary)] truncate leading-tight">{appName}</span>
-              <span className="text-[10px] font-bold text-white/50 tracking-[0.2em] uppercase leading-tight">Football Club</span>
             </div>
           </div>
           
@@ -91,9 +97,9 @@ export default function LandingPage() {
                 <span className="text-[var(--color-primary)] text-glow">MASA DEPAN</span>
               </h1>
               <p className="text-sm text-white mb-10 leading-relaxed font-light max-w-2xl">
-                Program pembinaan sepak bola modern berbasis data, disiplin, dan performa tingkat nasional. 
+                Program pembinaan sepak bola modern berbasis data, disiplin, dan performa tingkat nasional 
                 <br className="hidden md:block" />
-                Kami melatih teknik, fisik, dan mental calon atlet profesional.
+                Kami melatih teknik, fisik, dan mental calon atlet profesional
               </p>
               
               <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -109,6 +115,12 @@ export default function LandingPage() {
                     <ArrowRight className="w-5 h-5" />
                   </motion.div>
                 </button>
+                <button 
+                  onClick={() => navigate('/register-player')}
+                  className="w-full sm:w-[260px] bg-[#0c162d]/50 backdrop-blur-md border border-white/10 hover:bg-white/10 text-white font-bold tracking-widest uppercase transition-all duration-300 hover:scale-105 active:scale-95 py-4 text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:border-white/20"
+                >
+                  Daftar Siswa Baru
+                </button>
               </div>
             </motion.div>
           </div>
@@ -120,15 +132,15 @@ export default function LandingPage() {
             <div className="flex gap-10">
               <div>
                 <p className="text-sm text-white mb-1">Pemain Aktif</p>
-                <p className="text-3xl font-display font-bold text-center text-[#facc15]">450+</p>
+                <p className="text-3xl font-display font-bold text-center text-[#facc15]">20+</p>
               </div>
               <div>
                 <p className="text-sm text-white mb-1">Pelatih Pro</p>
-                <p className="text-3xl font-display font-bold text-center text-[#facc15]">12</p>
+                <p className="text-3xl font-display font-bold text-center text-[#facc15]">3</p>
               </div>
               <div>
                 <p className="text-sm text-white mb-1">Turnamen</p>
-                <p className="text-3xl font-display font-bold text-center text-[#facc15]">25</p>
+                <p className="text-3xl font-display font-bold text-center text-[#facc15]">15</p>
               </div>
             </div>
           </div>
@@ -141,39 +153,114 @@ export default function LandingPage() {
       <section id="program" className="py-32 px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">PROGRAM UNGGULAN</h2>
+            <h2 className="font-bold mb-4" style={{ fontSize: 'clamp(40px, 6vw, 71px)' }}>PROGRAM UNGGULAN</h2>
             <div className="w-24 h-1 bg-[var(--color-primary)] mx-auto rounded-full shadow-[0_0_10px_var(--color-primary)]" />
+            <p className="mt-6 text-white/50 max-w-2xl mx-auto text-sm leading-relaxed">Berani bermimpi besar. Semua program didesain berdasarkan kurikulum standar akademi profesional, siap membawa performa pemain ke level elit.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { age: 'U8-U10', name: 'SSB BANTANG JUNIOR', desc: 'Fokus pada kesenangan & teknik dasar bola.', img: 'https://images.unsplash.com/photo-1551958219-acbc608c6377?auto=format&fit=crop&q=80&w=1000' },
-              { age: 'U12-U14', name: 'Bantang Development', desc: 'Pemantapan visi bermain & taktik tim.', img: 'https://images.unsplash.com/photo-1543351611-58f69d7c1781?auto=format&fit=crop&q=80&w=1000' },
-              { age: 'U15-U17', name: 'Bantang Performance', desc: 'Persiapan fisik & mental level kompetisi.', img: 'https://images.unsplash.com/photo-1517466787929-bc94061c5c50?auto=format&fit=crop&q=80&w=1000' },
-              { age: 'Pro', name: 'Scouting Path', desc: 'Jalur karir menuju klub profesional.', img: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=1000' }
-            ].map((program, idx) => (
-              <motion.div
-                key={idx}
-                whileHover={{ y: -10 }}
-                className="glass-card group overflow-hidden"
-              >
-                <div className="h-48 overflow-hidden relative">
-                  <img src={program.img} alt={program.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-surface)] to-transparent" />
-                  <span className="absolute bottom-4 left-4 text-[10px] font-bold bg-[var(--color-primary)] text-black px-2 py-1 rounded">
-                    {program.age}
-                  </span>
-                </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold mb-2">{program.name}</h3>
-                  <p className="text-sm text-white/50 mb-6 leading-relaxed">{program.desc}</p>
-                  <button className="text-xs font-bold flex items-center gap-2 text-[var(--color-primary)] hover:gap-3 transition-all">
-                    PELAJARI LEBIH LANJUT <ArrowRight className="w-3 h-3" />
-                  </button>
-                </div>
-              </motion.div>
-            ))}
+          <div className="mb-16">
+            <h3 className="text-2xl font-bold mb-8 flex items-center gap-3">
+              <span className="w-2 h-8 bg-[var(--color-primary)] rounded-full"></span>
+              Jalur Pembinaan Utama
+            </h3>
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[1, 2, 3, 4].map(n => (
+                  <div key={n} className="h-64 bg-white/5 rounded-3xl animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {activePrograms.filter((p: any) => p.type === 'main').map((program: any, idx: number) => (
+                  <motion.div
+                    key={program.id}
+                    whileHover={{ y: -10 }}
+                    className="bg-[#0c162d]/80 backdrop-blur-xl border border-white/5 group overflow-hidden rounded-3xl"
+                  >
+                  <div className="h-48 overflow-hidden relative">
+                    <img src={program.image} alt={program.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0c162d] via-black/20 to-transparent" />
+                    <span className="absolute top-4 left-4 text-[10px] font-black bg-[var(--color-primary)] text-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">
+                      {program.ageRange}
+                    </span>
+                  </div>
+                  <div className="p-6 relative">
+                    <h3 className="text-xl font-display font-bold mb-2 text-white group-hover:text-[var(--color-primary)] transition-colors">{program.title}</h3>
+                    <p className="text-sm text-white/50 mb-6 leading-relaxed line-clamp-2">{program.description}</p>
+                    <div className="flex items-center justify-between">
+                      <button 
+                        onClick={() => navigate(`/programs/${program.id}`)}
+                        className="text-xs font-bold flex items-center gap-2 text-white/70 hover:text-[var(--color-primary)] transition-all group-hover:tracking-wider uppercase"
+                      >
+                        Pelajari Lebih Lanjut <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                      {user?.role === 'admin' && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); navigate('/programs/manage'); }}
+                          className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 hover:bg-purple-500 hover:text-white transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+            )}
           </div>
+          <div>
+            <h3 className="text-2xl font-bold mb-8 flex items-center gap-3">
+              <span className="w-2 h-8 bg-purple-500 rounded-full"></span>
+              Program Spesialis & Advanced
+            </h3>
+            {isLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[1, 2, 3, 4].map(n => (
+                  <div key={n} className="h-64 bg-white/5 rounded-3xl animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {activePrograms.filter((p: any) => p.type === 'special').map((program: any, idx: number) => (
+                  <motion.div
+                    key={program.id}
+                    whileHover={{ y: -10 }}
+                    className="bg-[#0c162d]/80 backdrop-blur-xl border border-white/5 group overflow-hidden rounded-3xl"
+                  >
+                  <div className="h-40 overflow-hidden relative">
+                    <img src={program.image} alt={program.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0c162d] via-black/20 to-transparent" />
+                    <span className="absolute top-4 left-4 text-[10px] font-black bg-purple-500 text-white px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">
+                      Spesialis
+                    </span>
+                  </div>
+                  <div className="p-6 relative">
+                    <h3 className="text-lg font-display font-bold mb-2 text-white group-hover:text-purple-400 transition-colors">{program.title}</h3>
+                    <p className="text-sm text-white/50 mb-6 leading-relaxed line-clamp-2">{program.description}</p>
+                    <div className="flex items-center justify-between">
+                      <button 
+                        onClick={() => navigate(`/programs/${program.id}`)}
+                        className="text-[10px] font-bold flex items-center gap-2 text-white/50 hover:text-purple-400 transition-all uppercase tracking-widest"
+                      >
+                        Detail Program <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                      {user?.role === 'admin' && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); navigate('/programs/manage'); }}
+                          className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 hover:bg-purple-500 hover:text-white transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+            )}
+          </div>
+
         </div>
       </section>
 

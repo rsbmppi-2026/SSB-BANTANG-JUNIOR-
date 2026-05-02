@@ -22,7 +22,33 @@ import { useCMSData } from '../lib/store';
 import { uploadFile } from '../lib/supabase';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
+
+const getMediaDetails = (url: string, type: string) => {
+  let category: 'YOUTUBE' | 'DRIVE' | 'IMAGE' = 'IMAGE';
+  let thumbnailUrl = url;
+  let embedUrl = url;
+
+  if (type === 'video') {
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      category = 'YOUTUBE';
+      const videoId = url.split('v=')[1]?.split('&')[0] || url.split('youtu.be/')[1]?.split('?')[0] || url.split('embed/')[1]?.split('?')[0];
+      if (videoId) {
+        thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+        embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1`;
+      }
+    } else if (url.includes('drive.google.com')) {
+      category = 'DRIVE';
+      const fileId = url.match(/\/d\/(.+?)(\/|$)/)?.[1];
+      if (fileId) {
+        thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}`;
+        embedUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+      }
+    }
+  }
+
+  return { category, thumbnailUrl, embedUrl };
+};
 
 const initialMedia = [
   { id: '1', type: 'photo', url: 'https://images.unsplash.com/photo-1543351611-58f69d7c1781?auto=format&fit=crop&q=80&w=1000', title: 'Latihan Bersama Coach', category: 'Training' },
@@ -36,6 +62,7 @@ const categories = ['All', 'Training', 'Tournament', 'Event', 'Highlights', 'Fac
 export default function Gallery() {
   const { data: media, addItems, updateItem, deleteItem } = useCMSData('gallery', initialMedia);
   const [activeTab, setActiveTab] = useState('All');
+  const [mediaTypeFilter, setMediaTypeFilter] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
@@ -46,7 +73,10 @@ export default function Gallery() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<any>(null);
 
-  const filteredMedia = activeTab === 'All' ? media : media.filter((m: any) => m.category === activeTab);
+  const filteredMedia = media.filter((m: any) => 
+    (activeTab === 'All' || m.category === activeTab) &&
+    (mediaTypeFilter === 'All' || (mediaTypeFilter === 'Photo' ? m.type === 'photo' : m.type === 'video'))
+  );
 
   const handleOpenAdd = () => {
     setEditingItem(null);
@@ -124,6 +154,19 @@ export default function Gallery() {
                   {cat}
                 </button>
               ))}
+              <div className="h-6 w-px bg-white/10 mx-2" />
+              {['All', 'Photo', 'Video'].map(type => (
+                <button
+                  key={type}
+                  onClick={() => setMediaTypeFilter(type)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all",
+                    mediaTypeFilter === type ? "bg-white/10 text-white" : "text-white/40 hover:text-white"
+                  )}
+                >
+                  {type}
+                </button>
+              ))}
            </div>
            
            <div className="flex items-center gap-2 w-full md:w-auto">
@@ -135,45 +178,62 @@ export default function Gallery() {
 
         {/* Media Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-           {filteredMedia.map((item: any) => (
-             <motion.div 
-               layout
-               initial={{ opacity: 0, scale: 0.9 }}
-               animate={{ opacity: 1, scale: 1 }}
-               key={item.id}
-               className="glass-card group overflow-hidden relative"
-             >
-                <div className="aspect-[4/5] overflow-hidden relative">
-                   <img src={item.url} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                   
-                   {/* Overlay */}
-                   <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <div className="absolute top-4 right-4 flex flex-col gap-2">
-                         <button onClick={(e) => handleOpenEdit(item, e)} className="p-2 backdrop-blur-md bg-black/40 rounded-xl border border-white/20 hover:bg-blue-500 hover:text-white transition-all text-blue-400">
-                            <Edit2 className="w-4 h-4" />
-                         </button>
-                         <button onClick={(e) => handleDelete(item.id, item.title, e)} className="p-2 backdrop-blur-md bg-black/40 rounded-xl border border-white/20 hover:bg-red-500 hover:text-white transition-all text-red-400">
-                            <Trash2 className="w-4 h-4" />
-                         </button>
-                      </div>
+           {filteredMedia.map((item: any) => {
+             const { category, thumbnailUrl } = getMediaDetails(item.url, item.type);
+             return (
+               <motion.div 
+                 layout
+                 initial={{ opacity: 0, scale: 0.9 }}
+                 animate={{ opacity: 1, scale: 1 }}
+                 key={item.id}
+                 className="glass-card group overflow-hidden relative cursor-pointer"
+                 onClick={() => { setSelectedMedia(item); setIsDetailModalOpen(true); }}
+               >
+                  <div className="aspect-[4/5] overflow-hidden relative">
+                     <img 
+                        src={thumbnailUrl} 
+                        alt={item.title} 
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1543351611-58f69d7c1781?auto=format&fit=crop&q=80&w=1000';
+                        }}
+                     />
+                     
+                     {/* Overlay */}
+                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div className="absolute top-4 right-4 flex flex-col gap-2">
+                           <button onClick={(e) => handleOpenEdit(item, e)} className="p-2 backdrop-blur-md bg-black/40 rounded-xl border border-white/20 hover:bg-blue-500 hover:text-white transition-all text-blue-400">
+                              <Edit2 className="w-4 h-4" />
+                           </button>
+                           <button onClick={(e) => handleDelete(item.id, item.title, e)} className="p-2 backdrop-blur-md bg-black/40 rounded-xl border border-white/20 hover:bg-red-500 hover:text-white transition-all text-red-400">
+                              <Trash2 className="w-4 h-4" />
+                           </button>
+                        </div>
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-4 bg-white/20 backdrop-blur-md rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Play className="w-6 h-6 text-white fill-white" />
+                        </div>
 
-                      <div className="absolute bottom-6 left-6 right-6">
-                         <div className="flex items-center gap-2 mb-2">
-                            {item.type === 'video' ? <Video className="w-4 h-4 text-red-500" /> : <ImageIcon className="w-4 h-4 text-[var(--color-primary)]" />}
-                            <span className="text-[10px] font-black uppercase text-white/60 tracking-widest">{item.category}</span>
-                         </div>
-                         <h3 className="text-lg font-display font-bold leading-tight text-white">{item.title}</h3>
-                      </div>
-                   </div>
-
-                   {item.type === 'video' && (
-                     <div className="absolute top-4 left-4 p-2 bg-red-600 rounded-lg shadow-lg">
-                        <Play className="w-3 h-3 text-white fill-white" />
+                        <div className="absolute bottom-6 left-6 right-6">
+                           <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[10px] font-black uppercase text-white/80 tracking-widest bg-black/40 px-2 py-1 rounded">
+                                {item.type === 'video' ? category : 'IMAGE'}
+                              </span>
+                              <span className="text-[10px] font-black uppercase text-white/60 tracking-widest">{item.category}</span>
+                           </div>
+                           <h3 className="text-lg font-display font-bold leading-tight text-white">{item.title}</h3>
+                        </div>
                      </div>
-                   )}
-                </div>
-             </motion.div>
-           ))}
+                     
+                     {/* Static indicator for videos */}
+                     {item.type === 'video' && (
+                       <div className="absolute top-4 left-4 p-2 bg-red-600 rounded">
+                          <Video className="w-3 h-3 text-white" />
+                       </div>
+                     )}
+                  </div>
+               </motion.div>
+             )
+           })}
         </div>
 
         {/* Load More */}
@@ -199,7 +259,7 @@ export default function Gallery() {
                   </div>
                 )}
                 {formData.url ? (
-                  <img src={formData.url} alt="Preview" className="w-full h-full object-cover" />
+                  <img src={getMediaDetails(formData.url, formData.type).thumbnailUrl} alt="Preview" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full bg-white/5 flex flex-col items-center justify-center text-white/20">
                     <ImageIcon className="w-8 h-8 mb-2" />
@@ -217,6 +277,11 @@ export default function Gallery() {
           </div>
 
           <div className="space-y-4">
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1.5 block">URL Media (YouTube/Drive Link)</label>
+              <input type="text" value={formData.url} onChange={(e) => setFormData({...formData, url: e.target.value})} className="w-full bg-surface-raised border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-[var(--color-primary)]" placeholder="https://..." />
+            </div>
+
             <div>
               <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1.5 block">Judul Media</label>
               <input type="text" required value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} className="w-full bg-surface-raised border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-[var(--color-primary)]" placeholder="Cth: Full Training Day" />
@@ -256,6 +321,50 @@ export default function Gallery() {
         onConfirm={() => deleteItem(deleteConfirm.id)}
         message={`Yakin ingin menghapus media "${deleteConfirm.title}"?`}
       />
+
+      {/* DETAIL VIEW MODAL */}
+      <AnimatePresence>
+        {isDetailModalOpen && selectedMedia && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          >
+            <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" onClick={() => setIsDetailModalOpen(false)} />
+            
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-full max-w-5xl aspect-video bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl"
+            >
+               <button 
+                 onClick={() => setIsDetailModalOpen(false)}
+                 className="absolute top-4 right-4 z-20 w-10 h-10 flex items-center justify-center rounded-full bg-black/40 border border-white/10 text-white/50 hover:text-white hover:bg-red-500/20 transition-all"
+               >
+                 <X className="w-5 h-5" />
+               </button>
+
+               {selectedMedia.type === 'video' ? (
+                 <iframe 
+                   src={getMediaDetails(selectedMedia.url, selectedMedia.type).embedUrl} 
+                   className="w-full h-full border-none" 
+                   allow="autoplay; encrypted-media; gyroscope; picture-in-picture"
+                   allowFullScreen
+                 />
+               ) : (
+                 <img src={selectedMedia.url} className="w-full h-full object-contain" alt={selectedMedia.title} />
+               )}
+
+               <div className="absolute bottom-0 inset-x-0 p-8 bg-gradient-to-t from-black via-black/50 to-transparent pointer-events-none">
+                  <span className="inline-block px-3 py-1 bg-[var(--color-primary)] text-black text-[10px] font-black uppercase tracking-widest rounded-full mb-3">{selectedMedia.category}</span>
+                  <h2 className="text-2xl font-display font-black text-white uppercase">{selectedMedia.title}</h2>
+               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Layout>
   );
 }

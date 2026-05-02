@@ -1,426 +1,667 @@
-import React, { useState, useRef, useEffect, MouseEvent } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Layout from '../components/ui/Layout';
-import { motion, useDragControls } from 'motion/react';
+import { motion, AnimatePresence, useMotionValue, useSpring } from 'motion/react';
 import { 
-  Shield, Target, Plus, Save, Activity, Crosshair, PenTool, MousePointer, 
-  Eraser, Undo, Play, Users, Map, Move, Trello 
+  Plus, PenTool, MousePointer, Eraser, Undo, Redo, Trash2, 
+  Settings, Share2, Download, Save, Layers, Circle, ArrowRight,
+  Maximize2, Minimize2, Goal, Map, Zap, Shield, Target, Activity,
+  ChevronDown, Type, History, Play, Check, Cloud
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useCMSData } from '../lib/store';
 
-// Extended formations
-const FORMATIONS_LIST = [
-  { id: '433', name: '4-3-3', type: '11v11', pos: [{x:50, y:90}, {x:20, y:70}, {x:40, y:75}, {x:60, y:75}, {x:80, y:70}, {x:50, y:55}, {x:30, y:45}, {x:70, y:45}, {x:20, y:20}, {x:80, y:20}, {x:50, y:15}] },
-  { id: '442', name: '4-4-2', type: '11v11', pos: [{x:50, y:90}, {x:20, y:70}, {x:40, y:75}, {x:60, y:75}, {x:80, y:70}, {x:20, y:45}, {x:40, y:50}, {x:60, y:50}, {x:80, y:45}, {x:35, y:20}, {x:65, y:20}] },
-  { id: '4231', name: '4-2-3-1', type: '11v11', pos: [{x:50, y:90}, {x:20, y:70}, {x:40, y:75}, {x:60, y:75}, {x:80, y:70}, {x:40, y:55}, {x:60, y:55}, {x:20, y:35}, {x:50, y:35}, {x:80, y:35}, {x:50, y:15}] },
-  { id: '352', name: '3-5-2', type: '11v11', pos: [{x:50, y:90}, {x:30, y:75}, {x:50, y:75}, {x:70, y:75}, {x:15, y:50}, {x:35, y:55}, {x:50, y:45}, {x:65, y:55}, {x:85, y:50}, {x:35, y:20}, {x:65, y:20}] },
-  { id: '4141', name: '4-1-4-1', type: '11v11', pos: [{x:50, y:90}, {x:20, y:70}, {x:40, y:75}, {x:60, y:75}, {x:80, y:70}, {x:50, y:60}, {x:20, y:40}, {x:40, y:45}, {x:60, y:45}, {x:80, y:40}, {x:50, y:15}] },
-  { id: '343', name: '3-4-3', type: '11v11', pos: [{x:50, y:90}, {x:30, y:75}, {x:50, y:75}, {x:70, y:75}, {x:20, y:50}, {x:40, y:50}, {x:60, y:50}, {x:80, y:50}, {x:25, y:20}, {x:75, y:20}, {x:50, y:15}] },
-  { id: '532', name: '5-3-2', type: '11v11', pos: [{x:50, y:90}, {x:15, y:70}, {x:30, y:75}, {x:50, y:75}, {x:70, y:75}, {x:85, y:70}, {x:30, y:45}, {x:50, y:50}, {x:70, y:45}, {x:35, y:20}, {x:65, y:20}] },
-  { id: '22', name: '2-2 (Futsal)', type: '5v5', pos: [{x:50, y:90}, {x:30, y:65}, {x:70, y:65}, {x:30, y:35}, {x:70, y:35}] },
-  { id: '121', name: '1-2-1 (Futsal)', type: '5v5', pos: [{x:50, y:90}, {x:50, y:70}, {x:20, y:45}, {x:80, y:45}, {x:50, y:20}] },
+// --- CONSTANTS ---
+
+const FIELD_MODES = [
+  { id: '7v7', name: '7 vs 7', players: 7 },
+  { id: '9v9', name: '9 vs 9', players: 9 },
+  { id: '11v11', name: '11 vs 11', players: 11 },
 ];
 
-const STRATEGIES = ['Normal', 'High Press', 'Counter Attack', 'Possession', 'Defensive Block'];
+const FORMATIONS: Record<string, any[]> = {
+  '7v7': [
+    { id: '2-3-1', name: '2-3-1', pos: [{x:50, y:90}, {x:30, y:75}, {x:70, y:75}, {x:20, y:45}, {x:50, y:50}, {x:80, y:45}, {x:50, y:20}] },
+    { id: '3-2-1', name: '3-2-1', pos: [{x:50, y:90}, {x:20, y:75}, {x:50, y:75}, {x:80, y:75}, {x:35, y:45}, {x:65, y:45}, {x:50, y:20}] },
+  ],
+  '9v9': [
+    { id: '3-3-2', name: '3-3-2', pos: [{x:50, y:90}, {x:20, y:75}, {x:50, y:75}, {x:80, y:75}, {x:20, y:50}, {x:50, y:50}, {x:80, y:50}, {x:35, y:25}, {x:65, y:25}] },
+    { id: '4-3-1', name: '4-3-1', pos: [{x:50, y:90}, {x:20, y:75}, {x:40, y:75}, {x:60, y:75}, {x:80, y:75}, {x:20, y:45}, {x:50, y:45}, {x:80, y:45}, {x:50, y:20}] },
+  ],
+  '11v11': [
+    { id: '4-3-3', name: '4-3-3', pos: [{x:50, y:90}, {x:20, y:70}, {x:40, y:75}, {x:60, y:75}, {x:80, y:70}, {x:50, y:55}, {x:30, y:45}, {x:70, y:45}, {x:20, y:20}, {x:80, y:20}, {x:50, y:12}] },
+    { id: '4-4-2', name: '4-4-2', pos: [{x:50, y:90}, {x:20, y:70}, {x:40, y:75}, {x:60, y:75}, {x:80, y:70}, {x:20, y:45}, {x:40, y:50}, {x:60, y:50}, {x:80, y:45}, {x:35, y:20}, {x:65, y:20}] },
+    { id: '4-2-3-1', name: '4-2-3-1', pos: [{x:50, y:90}, {x:20, y:70}, {x:40, y:75}, {x:60, y:75}, {x:80, y:70}, {x:40, y:55}, {x:60, y:55}, {x:20, y:35}, {x:50, y:35}, {x:80, y:35}, {x:50, y:12}] },
+  ]
+};
+
+const STRATEGY_PLANS = [
+  { id: 'High Press', name: 'High Press', icon: Zap, color: 'from-amber-400 to-orange-500' },
+  { id: 'Counter Attack', name: 'Counter Attack', icon: Activity, color: 'from-blue-400 to-indigo-500' },
+  { id: 'Possession', name: 'Possession', icon: Target, color: 'from-emerald-400 to-teal-500' },
+  { id: 'Defensive Block', name: 'Defensive Block', icon: Shield, color: 'from-red-400 to-rose-500' }
+];
+
+const COLORS = [
+  { id: 'white', value: '#ffffff' },
+  { id: 'yellow', value: '#fbbf24' },
+  { id: 'red', value: '#ef4444' },
+  { id: 'blue', value: '#3b82f6' },
+  { id: 'green', value: '#10b981' },
+];
 
 export default function Tactics() {
-  const [activeFormType, setActiveFormType] = useState('11v11');
-  const availableFormations = FORMATIONS_LIST.filter(f => f.type === activeFormType);
-  const [activeFormTemplate, setActiveFormTemplate] = useState(availableFormations[0]);
-  const [activeStrat, setActiveStrat] = useState(STRATEGIES[0]);
+  const [boardMode, setBoardMode] = useState('11v11');
+  const [formation, setFormation] = useState(FORMATIONS[boardMode][0]);
+  const [strategy, setStrategy] = useState('High Press');
+  const [activeTool, setActiveTool] = useState<'cursor' | 'pen' | 'arrow' | 'circle' | 'eraser'>('cursor');
+  const [toolColor, setToolColor] = useState('#ffffff');
+  const [toolSize, setToolSize] = useState(4);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
   
-  // Tactical Board State
   const boardRef = useRef<HTMLDivElement>(null);
-  const [playerPositions, setPlayerPositions] = useState(availableFormations[0].pos);
-  const [activeTool, setActiveTool] = useState('cursor');
+  const activePathRef = useRef<SVGPathElement>(null);
+  const drawingRef = useRef<{ points: {x:number, y:number}[], tool: string, color: string, size: number } | null>(null);
+
+  const [positions, setPositions] = useState(formation.pos);
   const [paths, setPaths] = useState<any[]>([]);
-  const [currentPath, setCurrentPath] = useState<any>(null);
-  const [selectedPlayer, setSelectedPlayer] = useState<number | null>(null);
+  const [redoStack, setRedoStack] = useState<any[]>([]);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Lineup State
-  const { data: allPlayers } = useCMSData('players', [
-     { id: 'p1', name: 'Bima Sakti', position: 'ST', overall: 98, stamina: 95 },
-     { id: 'p2', name: 'Arhan Pratama', position: 'LB', overall: 95, stamina: 99 },
-     { id: 'p3', name: 'Evan Dimas', position: 'CM', overall: 92, stamina: 85 }
-  ]);
+  const { data: savedTactics, addItems: syncTactics } = useCMSData('tactics', []);
 
-  // Handle Strategy Change effect on positions
+  // Sync positions when formation changes
   useEffect(() => {
-    let modifierY = 0;
-    if (activeStrat === 'High Press') modifierY = -15; // move up
-    if (activeStrat === 'Defensive Block') modifierY = 15; // move down
-    if (activeStrat === 'Normal' || activeStrat === 'Possession' || activeStrat === 'Counter Attack') modifierY = 0;
+    setPositions(formation.pos);
+    setPaths([]);
+  }, [formation]);
 
-    const newPos = activeFormTemplate.pos.map((p, idx) => {
-      if (idx === 0) return p; // GK stays mostly
-      let ny = p.y + modifierY;
-      // counter attack pushes forwards up
-      if (activeStrat === 'Counter Attack' && p.y < 30) ny -= 10;
-      // possession brings them closer to center
-      if (activeStrat === 'Possession' && p.y < 30) ny += 10; 
-      // Clamp bounds
-      ny = Math.max(5, Math.min(95, ny));
-      return { ...p, y: ny };
-    });
-    setPlayerPositions(newPos);
-  }, [activeStrat, activeFormTemplate]);
+  // Handle Auto-save
+  const autoSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      await syncTactics({
+        name: `Tactic ${new Date().toLocaleTimeString()}`,
+        mode: boardMode,
+        formation_id: formation.id,
+        strategy,
+        positions,
+        paths,
+        is_template: false
+      });
+      setLastSaved(new Date().toLocaleTimeString());
+    } catch (err) {
+      console.error("Auto-save failed:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [boardMode, formation, strategy, positions, paths, syncTactics]);
 
-  // Loading a specific formation
-  const handleLoadFormation = (f: any) => {
-    setActiveFormTemplate(f);
-    setActiveStrat('Normal'); // reset strategy on formation change
-    setPaths([]); // clear drawings
-  };
+  // Debounce autosave
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (paths.length > 0 || positions !== formation.pos) {
+        autoSave();
+      }
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [positions, paths, autoSave]);
 
-  // Drawing Handlers
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (activeTool === 'cursor' || activeTool === 'eraser') return;
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activeTool === 'cursor') return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.stopPropagation();
     const rect = boardRef.current?.getBoundingClientRect();
     if (!rect) return;
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setCurrentPath({ points: [{x, y}], tool: activeTool });
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!currentPath) return;
-    const rect = boardRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setCurrentPath({ ...currentPath, points: [...currentPath.points, {x, y}] });
-  };
-
-  const handlePointerUp = () => {
-    if (currentPath) {
-      setPaths([...paths, currentPath]);
-      setCurrentPath(null);
+    
+    drawingRef.current = { points: [{x, y}], tool: activeTool, color: toolColor, size: toolSize };
+    
+    if (activePathRef.current) {
+        const pathEl = activePathRef.current;
+        const d = `M ${x} ${y}`;
+        pathEl.setAttribute('d', d);
+        pathEl.setAttribute('stroke', activeTool === 'eraser' ? '#123e20' : toolColor);
+        pathEl.setAttribute('stroke-width', String((activeTool === 'eraser' ? (toolSize * 3) : toolSize) / 4));
+        
+        if (activeTool === 'arrow') {
+           pathEl.setAttribute('stroke-dasharray', '8,4');
+           pathEl.setAttribute('marker-end', 'url(#arrowhead)');
+           pathEl.removeAttribute('fill');
+        } else if (activeTool === 'circle') {
+           pathEl.setAttribute('stroke-dasharray', '4,4');
+           pathEl.setAttribute('fill', toolColor);
+           pathEl.setAttribute('fill-opacity', '0.1');
+           pathEl.removeAttribute('marker-end');
+        } else {
+           pathEl.removeAttribute('stroke-dasharray');
+           pathEl.removeAttribute('marker-end');
+           pathEl.removeAttribute('fill');
+           if (activeTool === 'eraser') {
+             pathEl.setAttribute('class', 'mix-blend-normal');
+           } else {
+             pathEl.removeAttribute('class');
+           }
+        }
+        pathEl.style.display = 'block';
     }
   };
 
-  const clearDrawings = () => setPaths([]);
-  const undoDrawing = () => setPaths(paths.slice(0, -1));
-
-  // Player Drag
-  const handleDragEnd = (index: number, info: any) => {
-    if (!boardRef.current) return;
-    const rect = boardRef.current.getBoundingClientRect();
-    // Convert px movement to percentage
-    const dx = (info.offset.x / rect.width) * 100;
-    const dy = (info.offset.y / rect.height) * 100;
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drawingRef.current) return;
+    const rect = boardRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
     
-    setPlayerPositions(prev => {
-      const newPos = [...prev];
-      newPos[index] = {
-        x: Math.max(2, Math.min(98, newPos[index].x + dx)),
-        y: Math.max(2, Math.min(98, newPos[index].y + dy))
-      };
-      return newPos;
+    drawingRef.current.points.push({x, y});
+    
+    if (activePathRef.current) {
+        const d = activePathRef.current.getAttribute('d') || '';
+        activePathRef.current.setAttribute('d', d + ` L ${x} ${y}`);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    if (drawingRef.current) {
+      setPaths(prev => [...prev, drawingRef.current!]);
+      drawingRef.current = null;
+      setRedoStack([]);
+    }
+    if (activePathRef.current) {
+      activePathRef.current.style.display = 'none';
+      activePathRef.current.setAttribute('d', '');
+    }
+  };
+
+  const handleUndo = () => {
+    if (paths.length === 0) return;
+    const last = paths[paths.length - 1];
+    setRedoStack([...redoStack, last]);
+    setPaths(paths.slice(0, -1));
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    const last = redoStack[redoStack.length - 1];
+    setPaths([...paths, last]);
+    setRedoStack(redoStack.slice(0, -1));
+  };
+
+  const updatePosition = (index: number, x: number, y: number) => {
+    setPositions(prev => {
+      const next = [...prev];
+      next[index] = { x, y };
+      return next;
     });
   };
 
   return (
     <Layout>
-      <div className="flex flex-col gap-6 pb-12 w-full max-w-[1800px] mx-auto animate-in fade-in duration-700 font-sans">
+      <div className="w-full max-w-[1600px] mx-auto pb-20 px-4 sm:px-6 lg:px-8 animate-in fade-in duration-1000">
         
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-display font-black text-white tracking-tight uppercase flex items-center gap-3">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 mt-4">
+          <div className="space-y-1">
+            <h1 className="text-4xl font-display font-black text-white tracking-tighter uppercase flex items-center gap-4">
               Tactical <span className="text-[var(--color-primary)]">Command Center</span>
-              <span className="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">PRO</span>
             </h1>
-            <p className="text-sm text-white/50 mt-1 font-medium">
-              Interact, Draw, Plan & Executing Match Strategies
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.4em] flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse" />
+                Live Strategy Engine v3.0
+              </p>
+              {lastSaved && (
+                <span className="text-[9px] font-bold text-white/20 uppercase tracking-widest flex items-center gap-1">
+                  <Cloud className="w-3 h-3" /> Tersimpan {lastSaved}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex gap-2">
-             <button className="flex items-center gap-2 px-4 py-2 bg-white/5 text-white font-bold text-sm rounded-xl hover:bg-white/10 transition-all border border-white/10">
-               <Map className="w-4 h-4" /> Load Preset
+
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+             <button className="flex-1 lg:flex-none py-3.5 px-6 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white transition-all flex items-center justify-center gap-2">
+                <History className="w-4 h-4" /> History
              </button>
-             <button className="flex items-center gap-2 px-6 py-2.5 bg-[var(--color-primary)] text-black font-bold text-sm rounded-xl hover:bg-yellow-500 transition-all shadow-[0_0_15px_var(--color-primary-glow)]">
-               <Save className="w-4 h-4" /> Save Tactical Plan
+             <button 
+                onClick={autoSave}
+                disabled={isSaving}
+                className="flex-1 lg:flex-none py-3.5 px-8 bg-[var(--color-primary)] text-black rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(250,204,21,0.3)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+             >
+                {isSaving ? <Plus className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSaving ? 'Saving...' : 'Save Strategy'}
              </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
           
-          {/* LIFT SIDEBAR - Tools & Board Options */}
-          <div className="lg:col-span-3 xl:col-span-2 flex flex-col gap-4">
-            
-            <div className="bg-[#111827] border border-white/10 rounded-2xl p-5">
-              <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 flex items-center gap-2">Board Tools</h3>
-              <div className="grid grid-cols-2 gap-2">
-                 <ToolBtn icon={MousePointer} label="Cursor" active={activeTool === 'cursor'} onClick={() => setActiveTool('cursor')} />
-                 <ToolBtn icon={PenTool} label="Pen" active={activeTool === 'pen'} onClick={() => setActiveTool('pen')} />
-                 <ToolBtn icon={Move} label="Move Line" active={activeTool === 'arrow'} onClick={() => setActiveTool('arrow')} />
-              </div>
-              <div className="flex gap-2 mt-2">
-                 <button onClick={undoDrawing} className="flex-1 py-2 flex items-center justify-center bg-white/5 hover:bg-white/10 rounded-lg text-white/60 transition-colors border border-white/5"><Undo className="w-4 h-4" /></button>
-                 <button onClick={clearDrawings} className="flex-1 py-2 flex items-center justify-center bg-white/5 hover:bg-red-500/20 hover:text-red-400 rounded-lg text-white/60 transition-colors border border-white/5"><Eraser className="w-4 h-4" /></button>
-              </div>
-            </div>
-
-            <div className="bg-[#111827] border border-white/10 rounded-2xl p-5">
-              <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 flex items-center gap-2">Formation Type</h3>
-              <div className="flex bg-black/40 rounded-lg p-1 border border-white/5 mb-4">
-                 <button onClick={() => setActiveFormType('11v11')} className={cn("flex-1 py-1.5 text-xs font-bold rounded-md transition-all", activeFormType === '11v11' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70')}>11v11</button>
-                 <button onClick={() => setActiveFormType('5v5')} className={cn("flex-1 py-1.5 text-xs font-bold rounded-md transition-all", activeFormType === '5v5' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white/70')}>5v5 / Mini</button>
-              </div>
+          {/* PITCH AREA - LEFT */}
+          <div className={cn("xl:col-span-8 flex flex-col items-center", isFullscreen ? "" : "relative")}>
+            <div className={cn(
+               "group/board perspective-1000",
+               isFullscreen ? "fixed inset-0 z-[100] bg-[var(--color-surface)] flex flex-col items-center justify-center p-4 pb-28 md:p-10 md:pb-32" : "relative w-full max-w-[650px] aspect-[2/3]"
+            )}>
               
-              <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">Presets</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {availableFormations.map(f => (
-                  <button 
-                    key={f.id}
-                    onClick={() => handleLoadFormation(f)}
-                    className={cn(
-                      "py-2 px-2 rounded-lg border text-xs font-bold transition-all text-center",
-                      activeFormTemplate.id === f.id 
-                        ? "bg-[var(--color-primary)] text-black border-[var(--color-primary)]" 
-                        : "bg-white/5 border-white/5 text-white/60 hover:bg-white/10 hover:text-white"
-                    )}
-                  >
-                    {f.name}
-                  </button>
-                ))}
+              {/* FIELD CONTAINER */}
+              <motion.div 
+                ref={boardRef}
+                initial={{ rotateX: 20 }}
+                animate={{ rotateX: 0 }}
+                transition={{ duration: 1.5, ease: "easeOut" }}
+                style={isFullscreen ? { aspectRatio: '2/3', maxWidth: '100%', maxHeight: '85vh' } : {}}
+                className={cn(
+                  "bg-[#123e20] relative overflow-hidden touch-none select-none ring-1 ring-white/10 w-full",
+                  isFullscreen ? "h-auto border-[6px] md:border-[12px] border-white/5 rounded-[2.5rem] md:rounded-[3.5rem] shadow-2xl" : "h-full border-[12px] border-white/5 rounded-[3.5rem] shadow-[0_100px_150px_rgba(0,0,0,0.7)]",
+                  activeTool !== 'cursor' ? 'cursor-crosshair' : 'cursor-default'
+                )}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerLeave={handlePointerUp}
+              >
+                {/* Grass Texturing */}
+                <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 40px, #fff 40px, #fff 80px)' }} />
+                <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
+                
+                {/* Field Markings */}
+                <div className="absolute inset-x-[4%] inset-y-[3%] border-[3px] border-white/15" />
+                <div className="absolute left-[4%] right-[4%] top-1/2 h-0 border-t-[3px] border-white/15 -translate-y-1/2" />
+                <div className="absolute top-1/2 left-1/2 w-[35%] aspect-square border-[3px] border-white/15 rounded-full -translate-x-1/2 -translate-y-1/2" />
+                <div className="absolute top-1/2 left-1/2 w-4 h-4 bg-white/20 rounded-full -translate-x-1/2 -translate-y-1/2" />
+                
+                {/* Detailed Boxes */}
+                <div className="absolute top-[3%] left-1/2 -translate-x-1/2 w-[50%] h-[16%] border-[3px] border-white/15" />
+                <div className="absolute bottom-[3%] left-1/2 -translate-x-1/2 w-[50%] h-[16%] border-[3px] border-white/15" />
+                <div className="absolute top-[3%] left-1/2 -translate-x-1/2 w-[22%] h-[6%] border-[3px] border-white/15" />
+                <div className="absolute bottom-[3%] left-1/2 -translate-x-1/2 w-[22%] h-[6%] border-[3px] border-white/15" />
+
+                {/* Drawing Layer - SVG */}
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full pointer-events-none z-10 filter-drop-shadow">
+                  <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orientation="auto">
+                      <polygon points="0 0, 10 3.5, 0 7" fill={toolColor} />
+                    </marker>
+                  </defs>
+                  {paths.map((p, i) => <BoardPath key={i} path={p} />)}
+                  <path 
+                    ref={activePathRef} 
+                    fill="none" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    style={{display: 'none', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'}} 
+                  />
+                </svg>
+
+                {/* Player Drag Layer */}
+                <div className="absolute inset-0 p-[4%] z-20 pointer-events-none">
+                  <AnimatePresence mode="popLayout">
+                    {positions.map((pos, i) => (
+                      <PlayerIcon 
+                        key={`${boardMode}-${i}`}
+                        idx={i}
+                        x={pos.x}
+                        y={pos.y}
+                        isGK={i === 0}
+                        active={selectedIdx === i}
+                        onSelect={() => setSelectedIdx(i)}
+                        onUpdate={(nx, ny) => updatePosition(i, nx, ny)}
+                        disabled={activeTool !== 'cursor'}
+                        boardRef={boardRef}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+
+                {/* Corner Flags */}
+                <div className="absolute top-[3%] left-[4%] w-4 h-4 border-l-2 border-t-2 border-white/20" />
+                <div className="absolute top-[3%] right-[4%] w-4 h-4 border-r-2 border-t-2 border-white/20" />
+                <div className="absolute bottom-[3%] left-[4%] w-4 h-4 border-l-2 border-b-2 border-white/20" />
+                <div className="absolute bottom-[3%] right-[4%] w-4 h-4 border-r-2 border-b-2 border-white/20" />
+              </motion.div>
+
+              {/* FLOATING GLASS TOOLBAR */}
+              <div className={cn("absolute left-1/2 -translate-x-1/2 w-max max-w-[95vw] md:max-w-none bg-surface/40 backdrop-blur-3xl border border-white/10 p-2 sm:p-2.5 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-[0_25px_50px_rgba(0,0,0,0.5)] z-50 flex flex-wrap sm:flex-nowrap items-center justify-center gap-1 sm:gap-2 ring-1 ring-white/5", isFullscreen ? "bottom-4 md:bottom-8 lg:bottom-12" : "-bottom-20 sm:-bottom-8")}>
+                 <ToolBtn icon={MousePointer} active={activeTool === 'cursor'} onClick={() => setActiveTool('cursor')} label="MOVE" />
+                 <div className="w-px h-8 bg-white/10 mx-1" />
+                 <ToolBtn icon={PenTool} active={activeTool === 'pen'} onClick={() => setActiveTool('pen')} label="DRAW" />
+                 <ToolBtn icon={ArrowRight} active={activeTool === 'arrow'} onClick={() => setActiveTool('arrow')} label="PASS" />
+                 <ToolBtn icon={Circle} active={activeTool === 'circle'} onClick={() => setActiveTool('circle')} label="ZONE" />
+                 <ToolBtn icon={Eraser} active={activeTool === 'eraser'} onClick={() => setActiveTool('eraser')} label="ERASE" />
+                 <div className="w-px h-8 bg-white/10 mx-1 hidden sm:block" />
+                 <div className="hidden sm:flex flex-col items-center gap-1 ml-2">
+                    <div className="flex gap-1">
+                      {COLORS.map(c => (
+                        <button 
+                          key={c.id} 
+                          onClick={() => setToolColor(c.value)} 
+                          className={cn(
+                            "w-4 h-4 rounded-full border transition-all", 
+                            toolColor === c.value ? "border-white scale-125 shadow-lg" : "border-transparent opacity-40 hover:opacity-100"
+                          )} 
+                          style={{ backgroundColor: c.value }} 
+                        />
+                      ))}
+                    </div>
+                    <div className="flex gap-1 mt-1">
+                      {[2, 4, 8].map(s => (
+                        <button key={s} onClick={() => setToolSize(s)} className={cn("w-4 h-px border-t transition-all", toolSize === s ? "border-white opacity-100" : "border-white/20")} style={{ borderTopWidth: s + 'px' }} />
+                      ))}
+                    </div>
+                 </div>
+                 <div className="w-px h-8 bg-white/10 mx-2 hidden sm:block" />
+                 <ToolBtn icon={Undo} onClick={handleUndo} className="opacity-40 hover:opacity-100" />
+                 <ToolBtn icon={Trash2} onClick={() => setPaths([])} className="text-red-400 opacity-40 hover:opacity-100" />
+                 <div className="w-px h-8 bg-white/10 mx-1" />
+                 <ToolBtn 
+                    icon={isFullscreen ? Minimize2 : Maximize2} 
+                    onClick={() => setIsFullscreen(!isFullscreen)} 
+                    label="FULL" 
+                    className="text-[var(--color-primary)] bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)] hover:text-black"
+                 />
               </div>
             </div>
-
           </div>
 
-          {/* MAIN TACTICAL PITCH */}
-          <div className="lg:col-span-6 xl:col-span-7 bg-[#111827] border border-white/10 rounded-3xl p-6 relative flex items-center justify-center min-h-[600px] xl:min-h-[800px] shadow-2xl">
-            {/* Action Overlay Top */}
-            <div className="absolute top-8 left-1/2 -translate-x-1/2 z-20 flex gap-2">
-              {STRATEGIES.map((strat) => (
-                <button
-                  key={strat}
-                  onClick={() => setActiveStrat(strat)}
-                  className={cn(
-                    "px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border",
-                    activeStrat === strat ? "bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]" : "bg-black/50 text-white/50 border-white/10 hover:border-white/30 hover:text-white backdrop-blur-sm"
-                  )}
-                >
-                  {strat}
-                </button>
-              ))}
-            </div>
+          {/* SIDEBAR CONTROLS - RIGHT */}
+          <div className="xl:col-span-4 space-y-6">
+            
+            {/* SETUP PANEL */}
+            <div className="glass-card p-8 rounded-[3rem] border border-white/5 bg-surface/30 space-y-8">
+               <div className="flex items-center gap-3">
+                  <div className="p-3 bg-white/5 rounded-2xl"><Settings className="w-5 h-5 text-[var(--color-primary)]" /></div>
+                  <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">Game Configuration</h3>
+               </div>
 
-            {/* AI Advisor Bubble */}
-            <div className="absolute top-8 right-8 z-20 bg-amber-500/10 border border-amber-500/20 backdrop-blur-md p-3 rounded-2xl max-w-[200px] hidden xl:block shadow-lg">
-               <p className="text-[10px] font-black uppercase text-amber-500 flex items-center gap-1 mb-1"><Target className="w-3 h-3" /> AI Insight</p>
-               <p className="text-xs text-amber-100/70 font-medium">Lawan cenderung bermain lebar. <span className="text-amber-400">4-3-3</span> dengan fullback overlap direkomendasikan.</p>
-            </div>
+               <div className="space-y-6">
+                 <div>
+                    <label className="text-[10px] font-black text-white/30 mb-4 block uppercase tracking-[0.3em]">Field Scale</label>
+                    <div className="grid grid-cols-3 gap-3">
+                       {FIELD_MODES.map(m => (
+                         <button 
+                           key={m.id} 
+                           onClick={() => { setBoardMode(m.id); setFormation(FORMATIONS[m.id][0]); }}
+                           className={cn(
+                             "py-4 px-1 rounded-2xl border transition-all duration-300 flex flex-col items-center gap-1", 
+                             boardMode === m.id 
+                                ? "bg-[var(--color-primary)] border-transparent text-black shadow-lg shadow-[var(--color-primary)]/20" 
+                                : "bg-black/40 border-white/5 text-white/30 hover:bg-white/10"
+                           )}
+                         >
+                           <span className="text-[10px] font-black uppercase tracking-widest">{m.name}</span>
+                         </button>
+                       ))}
+                    </div>
+                 </div>
 
-            {/* Field Background Container */}
-            <div 
-              ref={boardRef}
-              className={cn(
-                "w-full max-w-[600px] h-full max-h-[85vh] aspect-[2/3] rounded-xl border-2 border-white/30 bg-[#1e3b2b] shadow-[inset_0_0_100px_rgba(0,0,0,0.5)] relative overflow-hidden touch-none",
-                activeTool !== 'cursor' ? 'cursor-crosshair' : 'cursor-default'
-              )}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerLeave={handlePointerUp}
-              style={{ touchAction: 'none' }}
-            >
-               {/* Grass Pattern */}
-               <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 10%, #fff 10%, #fff 20%)' }} />
-               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.1)_0%,transparent_70%)] pointer-events-none" />
-
-               {/* Pitch Markings */}
-               {/* Center Line & Circle */}
-               <div className="absolute top-1/2 left-0 right-0 h-0 border-t-2 border-white/40 -translate-y-1/2" />
-               <div className="absolute top-1/2 left-1/2 w-[30%] aspect-square border-2 border-white/40 rounded-full -translate-x-1/2 -translate-y-1/2" />
-               <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-white/40 rounded-full -translate-x-1/2 -translate-y-1/2" />
-               
-               {/* Box Areas Top */}
-               <div className="absolute top-0 left-1/2 w-[55%] aspect-[2/1] border-2 border-t-0 border-white/40 -translate-x-1/2" />
-               <div className="absolute top-0 left-1/2 w-[25%] aspect-[2/1] border-2 border-t-0 border-white/40 -translate-x-1/2" />
-               <div className="absolute top-[12%] left-1/2 w-2 h-2 bg-white/40 rounded-full -translate-x-1/2" />
-               <div className="absolute top-[20%] left-1/2 w-[20%] h-[15%] border-b-2 border-white/40 border-r-2 border-l-2 rounded-b-full -translate-x-1/2" style={{ clipPath: 'polygon(0 50%, 100% 50%, 100% 100%, 0 100%)' }} />
-
-               {/* Box Areas Bottom */}
-               <div className="absolute bottom-0 left-1/2 w-[55%] aspect-[2/1] border-2 border-b-0 border-white/40 -translate-x-1/2" />
-               <div className="absolute bottom-0 left-1/2 w-[25%] aspect-[2/1] border-2 border-b-0 border-white/40 -translate-x-1/2" />
-               <div className="absolute bottom-[12%] left-1/2 w-2 h-2 bg-white/40 rounded-full -translate-x-1/2" />
-               <div className="absolute bottom-[20%] left-1/2 w-[20%] h-[15%] border-t-2 border-white/40 border-r-2 border-l-2 rounded-t-full -translate-x-1/2" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 50%, 0 50%)' }} />
-
-               {/* Drawing Canvas Overlay */}
-               <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
-                 {paths.map((path, i) => (
-                   <DrawPath key={i} path={path} />
-                 ))}
-                 {currentPath && <DrawPath path={currentPath} />}
-               </svg>
-
-               {/* Players Layer */}
-               <div className="absolute inset-0 z-20 pointer-events-none">
-                 {playerPositions.map((pos, idx) => (
-                   <motion.div
-                     key={`p-${idx}`}
-                     className="absolute"
-                     initial={false}
-                     animate={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-                     transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                     style={{ x: '-50%', y: '-50%' }}
-                   >
-                     {/* Draggable handle */}
-                     <motion.div 
-                       drag={activeTool === 'cursor'}
-                       dragConstraints={boardRef}
-                       dragElastic={0}
-                       dragMomentum={false}
-                       onDragEnd={(_, info) => handleDragEnd(idx, info)}
-                       onClick={() => setSelectedPlayer(idx)}
-                       whileHover={{ scale: 1.1 }}
-                       whileDrag={{ scale: 1.2, zIndex: 100 }}
-                       className={cn(
-                         "w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-white shadow-[0_5px_15px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center font-bold text-xs md:text-sm cursor-grab active:cursor-grabbing text-black font-display pointer-events-auto relative group",
-                         idx === 0 ? 'bg-amber-500' : 'bg-red-500 text-white',
-                         selectedPlayer === idx ? 'ring-4 ring-white/50' : ''
-                       )}
-                     >
-                       {/* Drop shadow realistic */}
-                       <div className="absolute -bottom-2 w-3/4 h-2 bg-black/40 blur-sm rounded-[100%] z-[-1]" />
-                       
-                       <span className="leading-none drop-shadow-md">{idx===0 ? '1' : idx+1}</span>
-                       
-                       <div className={cn(
-                         "absolute -bottom-6 bg-black/80 text-white text-[9px] px-2 py-0.5 rounded backdrop-blur whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity border border-white/20",
-                         selectedPlayer === idx ? 'opacity-100' : ''
-                       )}>
-                          {idx === 0 ? 'GK' : `Player ${idx+1}`}
-                       </div>
-                     </motion.div>
-                   </motion.div>
-                 ))}
+                 <div>
+                    <div className="flex items-center justify-between mb-4">
+                       <label className="text-[10px] font-black text-white/30 block uppercase tracking-[0.3em]">Smart Formation</label>
+                       <span className="px-2 py-0.5 rounded-lg bg-white/5 text-[8px] font-black text-white/20 uppercase tracking-widest">PRO ENGINE</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                       {FORMATIONS[boardMode].map(f => (
+                         <button 
+                           key={f.id} 
+                           onClick={() => setFormation(f)}
+                           className={cn(
+                             "py-5 px-1 rounded-2xl border transition-all duration-300 relative group overflow-hidden", 
+                             formation.id === f.id 
+                                ? "bg-white text-black border-transparent shadow-xl" 
+                                : "bg-black/40 border-white/5 text-white/40 hover:bg-white/10"
+                           )}
+                         >
+                           <span className="text-sm font-black tracking-tighter uppercase">{f.name}</span>
+                           {formation.id === f.id && <div className="absolute top-1 right-2 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />}
+                         </button>
+                       ))}
+                    </div>
+                 </div>
                </div>
             </div>
-          </div>
 
-          {/* RIGHT SIDEBAR - Line Up & Squad */}
-          <div className="lg:col-span-3 xl:col-span-3 flex flex-col gap-4">
-             <div className="bg-[#111827] border border-white/10 rounded-2xl p-5 flex flex-col h-full min-h-[600px]">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Users className="w-4 h-4 text-[var(--color-primary)]" /> Match Squad</h3>
-                  <span className="text-[10px] font-black bg-white/10 px-2 py-1 rounded text-white">{playerPositions.length} / {activeFormType === '11v11' ? '11' : '5'}</span>
-                </div>
+            {/* STRATEGY BLOCKS */}
+            <div className="glass-card p-8 rounded-[3rem] border border-white/5 bg-surface/30 space-y-8">
+               <div className="flex items-center gap-3">
+                  <div className="p-3 bg-white/5 rounded-2xl"><Target className="w-5 h-5 text-[var(--color-primary)]" /></div>
+                  <h3 className="text-xs font-black text-white uppercase tracking-[0.2em]">Strategy Presets</h3>
+               </div>
 
-                <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
-                   <div>
-                     <h4 className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-3">Starting Lineup</h4>
-                     <div className="space-y-2">
-                       {playerPositions.map((_, i) => (
-                         <div key={i} onClick={() => setSelectedPlayer(i)} className={cn(
-                           "flex gap-3 items-center p-2 rounded-xl border border-transparent hover:bg-white/5 cursor-pointer transition-colors",
-                           selectedPlayer === i ? "bg-white/10 border-white/20" : ""
-                         )}>
-                           <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs shrink-0", i===0 ? 'bg-amber-500 text-black' : 'bg-red-500 text-white')}>
-                             {i===0 ? '1' : i+1}
-                           </div>
-                           <div className="flex-1">
-                             <p className="text-sm font-bold text-white leading-none">Pemain #{i+1}</p>
-                             <p className="text-[10px] text-white/50">{i===0 ? 'Goalkeeper' : 'Outfield'}</p>
-                           </div>
-                           {/* Simulate real data for first few */}
-                           {i < allPlayers.length && (
-                             <div className="text-right">
-                               <p className="text-xs font-black text-[var(--color-primary)]">{allPlayers[i].overall}</p>
-                             </div>
-                           )}
-                         </div>
-                       ))}
-                     </div>
-                   </div>
-
-                   <div className="mt-6 pt-4 border-t border-white/10">
-                      <h4 className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-3 flex justify-between items-center">
-                        Substitutes
-                        <button className="text-[var(--color-primary)] hover:text-yellow-400">+ Add</button>
-                      </h4>
-                      <div className="text-center p-6 border-2 border-dashed border-white/5 rounded-xl text-white/30 text-xs font-bold">
-                        Drag pemain kesini untuk cadangan
-                      </div>
-                   </div>
-                </div>
-
-                {selectedPlayer !== null && (
-                  <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-[var(--color-primary)]/10 to-transparent border border-[var(--color-primary)]/20 animate-in slide-in-from-bottom-5">
-                     <p className="text-[10px] font-black uppercase text-[var(--color-primary)] tracking-widest mb-1">Selected Player Details</p>
-                     <p className="text-white font-bold text-sm">Nomor Punggung #{selectedPlayer+1}</p>
-                     <div className="flex gap-4 mt-3">
-                       <div>
-                         <span className="text-[10px] text-white/40 uppercase block">Stamina</span>
-                         <span className="text-emerald-400 font-black">95%</span>
+               <div className="grid grid-cols-2 gap-3">
+                 {STRATEGY_PLANS.map(plan => {
+                   const PlanIcon = plan.icon;
+                   const isActive = strategy === plan.id;
+                   return (
+                     <button 
+                       key={plan.id}
+                       onClick={() => setStrategy(plan.id)}
+                       className={cn(
+                         "relative p-6 rounded-[2.5rem] border transition-all duration-500 flex flex-col items-center justify-center gap-4 h-36 overflow-hidden group",
+                         isActive 
+                           ? "border-transparent text-white" 
+                           : "bg-black/40 border-white/5 text-white/20 hover:text-white/40"
+                       )}
+                     >
+                       {isActive && (
+                         <motion.div 
+                           layoutId="active-stra-bg" 
+                           className={cn("absolute inset-0 bg-gradient-to-br z-0", plan.color)} 
+                         />
+                       )}
+                       <div className="relative z-10 p-4 bg-black/20 rounded-2xl group-hover:scale-110 transition-transform">
+                         <PlanIcon className="w-7 h-7" />
                        </div>
-                       <div>
-                         <span className="text-[10px] text-white/40 uppercase block">Role</span>
-                         <span className="text-white font-black">{selectedPlayer === 0 ? 'Goalkeeper' : 'Outfield'}</span>
-                       </div>
-                     </div>
-                     <button className="w-full mt-4 py-2 border border-white/10 hover:bg-white/5 rounded-lg text-xs font-bold text-white transition-colors">Ganti Pemain</button>
-                  </div>
-                )}
-             </div>
-          </div>
+                       <span className="relative z-10 text-[9px] font-black uppercase tracking-[0.2em] text-center w-full">{plan.name}</span>
+                       <div className={cn(
+                         "absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",
+                         isActive ? "hidden" : "block"
+                       )} />
+                     </button>
+                   );
+                 })}
+               </div>
+            </div>
 
+            {/* QUICK ACTIONS */}
+            <div className="grid grid-cols-2 gap-3">
+               <button className="flex items-center justify-center gap-3 p-5 rounded-3xl bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest">
+                  <Share2 className="w-4 h-4" /> Share link
+               </button>
+               <button className="flex items-center justify-center gap-3 p-5 rounded-3xl bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all text-[10px] font-black uppercase tracking-widest">
+                  <Download className="w-4 h-4" /> Export image
+               </button>
+            </div>
+
+          </div>
         </div>
       </div>
     </Layout>
   );
 }
 
-// Tool Component
-const ToolBtn = ({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) => (
-  <button 
-    onClick={onClick}
-    className={cn(
-      "py-2 flex flex-col items-center justify-center gap-1 rounded-lg transition-all border",
-      active ? "bg-[var(--color-primary)] text-black border-[var(--color-primary)] shadow-[0_0_10px_var(--color-primary-glow)]" : "bg-white/5 text-white/60 border-white/5 hover:bg-white/10 hover:text-white"
-    )}
-  >
-    <Icon className="w-4 h-4" />
-    <span className="text-[9px] font-bold uppercase tracking-wider">{label}</span>
-  </button>
-);
+// --- SUBCOMPONENTS ---
 
-// SVG Drawing Path Component
-const DrawPath: React.FC<{ path: any }> = ({ path }) => {
-  if (!path || path.points.length < 2) return null;
+function ToolBtn({ icon: Icon, active, onClick, label, className }: any) {
+  return (
+    <button 
+      onClick={onClick}
+      className={cn(
+        "p-2 sm:p-4 rounded-[1rem] sm:rounded-[1.75rem] flex flex-col items-center justify-center gap-0.5 sm:gap-2 transition-all duration-300 min-w-[38px] sm:min-w-[70px] shrink-0",
+        active 
+          ? "bg-white text-black shadow-2xl scale-110" 
+          : "hover:bg-white/10 text-white/40 hover:text-white",
+        className
+      )}
+    >
+      <Icon className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+      {label && <span className="text-[7px] sm:text-[8px] font-black uppercase tracking-[0.1em] sm:tracking-[0.2em]">{label}</span>}
+    </button>
+  );
+}
+
+interface PlayerProps {
+  idx: number; x: number; y: number; isGK: boolean; active: boolean; 
+  onSelect: () => void; onUpdate: (nx: number, ny: number) => void;
+  disabled: boolean; boardRef: React.RefObject<HTMLDivElement>;
+}
+
+const PlayerIcon: React.FC<PlayerProps> = ({ idx, x, y, isGK, active, onSelect, onUpdate, disabled, boardRef }) => {
+  const [localPos, setLocalPos] = useState({ x, y });
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    if (!isDragging) {
+      setLocalPos({ x, y });
+    }
+  }, [x, y, isDragging]);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (disabled) return;
+    e.stopPropagation();
+    onSelect();
+    setIsDragging(true);
+
+    const board = boardRef.current;
+    if (!board) return;
+
+    const handlePointerMove = (me: PointerEvent) => {
+      me.preventDefault(); // prevent scrolling on mobile touch
+      const rect = board.getBoundingClientRect();
+      const nx = ((me.clientX - rect.left) / rect.width) * 100;
+      const ny = ((me.clientY - rect.top) / rect.height) * 100;
+      setLocalPos({
+        x: Math.max(2, Math.min(98, nx)),
+        y: Math.max(2, Math.min(98, ny)),
+      });
+    };
+
+    const handlePointerUp = (ue: PointerEvent) => {
+      setIsDragging(false);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      
+      const rect = board.getBoundingClientRect();
+      const nx = ((ue.clientX - rect.left) / rect.width) * 100;
+      const ny = ((ue.clientY - rect.top) / rect.height) * 100;
+      onUpdate(
+        Math.max(2, Math.min(98, nx)),
+        Math.max(2, Math.min(98, ny))
+      );
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+  };
+
+  return (
+    <div
+      style={{ 
+        left: `${localPos.x}%`, 
+        top: `${localPos.y}%`, 
+        transform: 'translate(-50%, -50%)',
+        touchAction: 'none'
+      }}
+      className={cn(
+        "absolute transition-none",
+        !disabled ? "pointer-events-auto" : "pointer-events-none",
+        isDragging && "z-50"
+      )}
+    >
+      <motion.div
+        onPointerDown={handlePointerDown}
+        whileHover={!disabled ? { scale: 1.1 } : {}}
+        animate={{ 
+          scale: isDragging ? 1.3 : 1,
+          filter: isDragging ? "drop-shadow(0 20px 30px rgba(0,0,0,0.4))" : "drop-shadow(0 10px 20px rgba(0,0,0,0.3))"
+        }}
+        className={cn(
+          "w-12 h-12 md:w-14 md:h-14 rounded-full border-[3px] flex flex-col items-center justify-center font-display font-black text-sm",
+          !disabled ? (isDragging ? "cursor-grabbing" : "cursor-grab") : "cursor-default",
+          isGK 
+            ? "bg-amber-400 text-black border-amber-500/50" 
+            : "bg-[var(--color-primary)] text-black border-white/20",
+          active ? "ring-[5px] ring-white/30" : "hover:ring-4 hover:ring-white/10"
+        )}
+      >
+        <span className="text-[10px] opacity-70 mb-[-2px]">{isGK ? 'GK' : idx + 1}</span>
+        <div className="absolute inset-0 rounded-full border border-white/20 mix-blend-overlay" />
+      </motion.div>
+      
+      {/* Real-time Indicator */}
+      <AnimatePresence>
+        {active && !disabled && (
+           <motion.div 
+             initial={{ opacity: 0, scale: 0 }}
+             animate={{ opacity: 1, scale: 1 }}
+             exit={{ opacity: 0, scale: 0 }}
+             className="absolute top-[-25px] left-1/2 -translate-x-1/2 bg-black text-white text-[8px] font-black px-2 py-0.5 rounded-full whitespace-nowrap"
+           >
+             {Math.round(localPos.x)}%, {Math.round(localPos.y)}%
+           </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+const BoardPath: React.FC<{ path: any }> = ({ path }) => {
+  if (!path || !path.points || path.points.length < 2) return null;
+  
   const d = path.points.map((p: any, i: number) => 
-    (i === 0 ? 'M' : 'L') + ` ${p.x}% ${p.y}%`
+    (i === 0 ? 'M' : 'L') + ` ${p.x} ${p.y}`
   ).join(' ');
 
+  const commonProps = {
+    d,
+    fill: "none",
+    stroke: path.color,
+    strokeWidth: (path.size || 4) / 4, // Scale down stroke widths logically since viewBox is 0-100
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    style: { filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))" }
+  };
+
   if (path.tool === 'arrow') {
-    // draw a line with arrow head (approximated with marker or just line)
-    // for simplicity here, just a dashed line
     return (
       <path 
-        d={d} 
-        fill="none" 
-        stroke="var(--color-primary)" 
-        strokeWidth="3" 
-        strokeDasharray="5,5" 
+        {...commonProps}
+        strokeDasharray="8,4" 
         markerEnd="url(#arrowhead)"
       />
     );
   }
 
+  if (path.tool === 'circle') {
+    return (
+      <path 
+        {...commonProps}
+        fill={path.color} 
+        fillOpacity="0.1"
+        strokeDasharray="4,4"
+      />
+    );
+  }
+
+  if (path.tool === 'eraser') {
+    return (
+      <path 
+        {...commonProps}
+        stroke="#123e20"
+        strokeWidth={((path.size || 4) * 3) / 4}
+        className="mix-blend-normal"
+      />
+    );
+  }
+
   return (
-    <path 
-      d={d} 
-      fill="none" 
-      stroke={path.tool === 'pen' ? 'white' : 'var(--color-primary)'} 
-      strokeWidth={path.tool === 'pen' ? "4" : "6"} 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      opacity={path.tool === 'highlight' ? 0.4 : 1}
-      filter={path.tool === 'highlight' ? 'blur(2px)' : 'none'}
+    <motion.path 
+      {...commonProps}
+      initial={{ pathLength: 0 }}
+      animate={{ pathLength: 1 }}
+      transition={{ duration: 0.3 }}
     />
   );
 }
-

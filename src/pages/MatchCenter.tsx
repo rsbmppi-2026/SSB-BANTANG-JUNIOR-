@@ -3,23 +3,24 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Trophy, Target, Users, MapPin, Clock, Calendar, ChevronRight, TrendingUp, Activity, Award, Zap, BarChart2, Table as TableIcon, Plus, Edit2, Trash2, Save, Image as ImageIcon, Loader2 } from 'lucide-react';
 import Layout from '../components/ui/Layout';
 import { cn } from '../lib/utils';
-import { useSettings } from '../App';
+import { useSettings, useAuth } from '../App';
 import { useCMSData } from '../lib/store';
 import { uploadFile } from '../lib/supabase';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
 
 const initialUpcomingMatches = [
-  { id: '1', tournament: 'Bantang Academy League', rival: 'City Football Academy', rivalLogo: 'https://cdn-icons-png.flaticon.com/128/3163/3163351.png', date: '2026-05-02', time: '15:00', venue: 'Gelora Bantang Stadium', category: 'U17-Pro' },
-  { id: '2', tournament: 'Regional Junior Cup', rival: 'Persija Academy', rivalLogo: 'https://cdn-icons-png.flaticon.com/128/3163/3163351.png', date: '2026-05-04', time: '09:00', venue: 'National Training Center', category: 'U12-Junior' },
+  { id: '1', tournament: 'Bantang Academy League', rival: 'City Football Academy', rivalLogo: 'https://cdn-icons-png.flaticon.com/128/3163/3163351.png', date: '2026-05-02', time: '15:00', venue: 'Gelora Bantang Stadium', category: 'U15' },
+  { id: '2', tournament: 'Regional Junior Cup', rival: 'Persija Academy', rivalLogo: 'https://cdn-icons-png.flaticon.com/128/3163/3163351.png', date: '2026-05-04', time: '09:00', venue: 'National Training Center', category: 'U12' },
 ];
 
 const initialResults = [
-  { id: '1', tournament: 'Friendly Match', rival: 'United FA', score: '3 - 1', date: '2026-04-24', category: 'U15-Dev', result: 'Win', scorers: ['Alvaro (2)', 'De Bruyne'] },
-  { id: '2', tournament: 'Bantang Academy League', rival: 'Red Bull Academy', score: '2 - 2', date: '2026-04-20', category: 'U17-Pro', result: 'Draw', scorers: ['Alvaro', 'Haaland'] },
+  { id: '1', tournament: 'Friendly Match', rival: 'United FA', score: '3 - 1', date: '2026-04-24', category: 'U14', result: 'Win', scorers: ['Alvaro (2)', 'De Bruyne'] },
+  { id: '2', tournament: 'Bantang Academy League', rival: 'Red Bull Academy', score: '2 - 2', date: '2026-04-20', category: 'U15', result: 'Draw', scorers: ['Alvaro', 'Haaland'] },
 ];
 
 export default function MatchCenter() {
+  const { user } = useAuth();
   const { appName, logoUrl } = useSettings();
   const { data: upcomingMatches, addItems: addUpcoming, updateItem: updateUpcoming, deleteItem: deleteUpcoming } = useCMSData('upcoming_matches', initialUpcomingMatches);
   const { data: results, addItems: addResult, updateItem: updateResult, deleteItem: deleteResult } = useCMSData('match_results', initialResults);
@@ -43,7 +44,12 @@ export default function MatchCenter() {
   const handleOpenEdit = (match: any, type: 'upcoming' | 'result') => {
     setMatchType(type);
     setEditingMatch(match);
-    setMatchForm(match);
+    // Normalize: ensure scorers is an array
+    const normalizedMatch = {
+      ...match,
+      scorers: Array.isArray(match.scorers) ? match.scorers : []
+    };
+    setMatchForm(normalizedMatch);
     setIsMatchModalOpen(true);
   };
 
@@ -86,12 +92,16 @@ export default function MatchCenter() {
             <p className="text-white/40 text-sm">CMS Admin: Kelola jadwal pertandingan, hasil, dan statistik tim.</p>
           </div>
           <div className="flex items-center gap-3">
-             <button onClick={() => handleOpenAdd('upcoming')} className="glow-button !py-2 flex items-center gap-2">
-                <Plus className="w-4 h-4" /> Tambah Jadwal
-             </button>
-             <button onClick={() => handleOpenAdd('result')} className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 text-xs font-bold hover:bg-green-500/20 transition-all flex items-center gap-2">
-                <Plus className="w-4 h-4" /> Input Hasil
-             </button>
+             {user?.role === 'admin' && (
+               <>
+                 <button onClick={() => handleOpenAdd('upcoming')} className="glow-button !py-2 flex items-center gap-2">
+                    <Plus className="w-4 h-4" /> Tambah Jadwal
+                 </button>
+                 <button onClick={() => handleOpenAdd('result')} className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 text-xs font-bold hover:bg-green-500/20 transition-all flex items-center gap-2">
+                    <Plus className="w-4 h-4" /> Input Hasil
+                 </button>
+               </>
+             )}
           </div>
         </div>
 
@@ -132,7 +142,7 @@ export default function MatchCenter() {
 
                    <div className="flex flex-col items-center gap-6 flex-1">
                       <div className="w-32 h-32 md:w-40 md:h-40 flex items-center justify-center shrink-0">
-                         <img src={upcomingMatches[0].rivalLogo} className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.1)] grayscale-0" />
+                         <img src={upcomingMatches[0].rivalLogo || upcomingMatches[0].rivallogo} className="w-full h-full object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.1)] grayscale-0" />
                       </div>
                       <div className="text-center w-full px-2 mt-4">
                          <p className="text-xl md:text-3xl font-display font-black tracking-tight uppercase break-words line-clamp-2 leading-tight">{upcomingMatches[0].rival}</p>
@@ -169,13 +179,15 @@ export default function MatchCenter() {
               <div className="space-y-4">
                  {upcomingMatches.map((match: any) => (
                    <div key={match.id} className="glass-card p-6 flex items-center gap-6 group hover:bg-white/[0.02] transition-colors relative h-28">
-                      <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                          <button onClick={() => handleOpenEdit(match, 'upcoming')} className="p-2 rounded-lg bg-black/40 text-blue-400 hover:text-white transition-colors"><Edit2 className="w-3.5 h-3.5"/></button>
-                          <button onClick={() => setDeleteConfirm({ isOpen: true, id: match.id, type: 'upcoming' })} className="p-2 rounded-lg bg-black/40 text-red-500 hover:text-white transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
-                      </div>
+                      {user?.role === 'admin' && (
+                        <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                            <button onClick={() => handleOpenEdit(match, 'upcoming')} className="p-2 rounded-lg bg-black/40 text-blue-400 hover:text-white transition-colors"><Edit2 className="w-3.5 h-3.5"/></button>
+                            <button onClick={() => setDeleteConfirm({ isOpen: true, id: match.id, type: 'upcoming' })} className="p-2 rounded-lg bg-black/40 text-red-500 hover:text-white transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
+                        </div>
+                      )}
                       <div className="w-12 h-12 rounded-xl bg-white/5 flex flex-col items-center justify-center text-center border border-white/5">
-                        <span className="text-xs font-bold leading-none text-white">{match.date.split('-')[2]}</span>
-                        <span className="text-[9px] uppercase text-white/40 mt-1">MAY</span>
+                        <span className="text-xs font-bold leading-none text-white">{(match.date || '').split('-')[2] || '--'}</span>
+                        <span className="text-[9px] uppercase text-white/40 mt-1">{(match.date || '').split('-')[1] ? new Date(match.date).toLocaleString('default', { month: 'short' }).toUpperCase() : 'MAY'}</span>
                       </div>
                       <div className="flex-1">
                         <p className="text-[9px] font-black text-[var(--color-primary)] uppercase tracking-widest mb-1">{match.category} • {match.tournament}</p>
@@ -201,10 +213,12 @@ export default function MatchCenter() {
               <div className="space-y-4">
                  {results.map((match: any) => (
                    <div key={match.id} className="glass-card p-6 block group hover:bg-white/[0.02] transition-colors relative">
-                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                          <button onClick={() => handleOpenEdit(match, 'result')} className="p-2 rounded-lg bg-black/40 text-blue-400 hover:text-white transition-colors"><Edit2 className="w-3.5 h-3.5"/></button>
-                          <button onClick={() => setDeleteConfirm({ isOpen: true, id: match.id, type: 'result' })} className="p-2 rounded-lg bg-black/40 text-red-500 hover:text-white transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
-                      </div>
+                      {user?.role === 'admin' && (
+                        <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                            <button onClick={() => handleOpenEdit(match, 'result')} className="p-2 rounded-lg bg-black/40 text-blue-400 hover:text-white transition-colors"><Edit2 className="w-3.5 h-3.5"/></button>
+                            <button onClick={() => setDeleteConfirm({ isOpen: true, id: match.id, type: 'result' })} className="p-2 rounded-lg bg-black/40 text-red-500 hover:text-white transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mb-4">
                          <span className="text-[9px] font-black text-white/30 uppercase tracking-widest">{match.category} • {match.tournament}</span>
                          <span className={cn(
@@ -223,7 +237,7 @@ export default function MatchCenter() {
                          <div className="flex items-center gap-4 flex-1 justify-end min-w-0">
                            <span className="font-bold text-white uppercase text-right break-words line-clamp-2 text-sm leading-tight">{match.rival}</span>
                            <div className="w-12 h-12 shrink-0 flex items-center justify-center">
-                              <img src={match.rivalLogo} alt={match.rival} className="w-full h-full object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.1)]" />
+                              <img src={match.rivalLogo || match.rivallogo} alt={match.rival} className="w-full h-full object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.1)]" />
                            </div>
                          </div>
                       </div>
@@ -263,7 +277,7 @@ export default function MatchCenter() {
 
             <div>
               <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1.5 block">Kategori Tim</label>
-              <input type="text" required value={matchForm.category} onChange={(e) => setMatchForm({...matchForm, category: e.target.value})} className="w-full bg-surface-raised border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-[var(--color-primary)]" placeholder="U17-Pro" />
+              <input type="text" required value={matchForm.category} onChange={(e) => setMatchForm({...matchForm, category: e.target.value})} className="w-full bg-surface-raised border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-[var(--color-primary)]" placeholder="U15" />
             </div>
 
             <div className="col-span-2">
@@ -326,7 +340,7 @@ export default function MatchCenter() {
                 </div>
                 <div className="col-span-2">
                    <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1.5 block">Pencetak Gol (Pisah Koma)</label>
-                   <input type="text" value={matchForm.scorers.join(', ')} onChange={(e) => setMatchForm({...matchForm, scorers: e.target.value.split(',').map(s => s.trim()).filter(s => s !== '')})} className="w-full bg-surface-raised border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-[var(--color-primary)]" placeholder="Alvaro, Haaland" />
+                   <input type="text" value={(matchForm.scorers || []).join(', ')} onChange={(e) => setMatchForm({...matchForm, scorers: e.target.value.split(',').map(s => s.trim()).filter(s => s !== '')})} className="w-full bg-surface-raised border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-[var(--color-primary)]" placeholder="Alvaro, Haaland" />
                 </div>
               </>
             )}

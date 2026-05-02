@@ -68,8 +68,8 @@ export default function ParentPortal() {
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2"><Activity className="w-4 h-4 text-emerald-400" /> Kehadiran</h3>
                   <span className="text-xl font-black text-emerald-400">95%</span>
                 </div>
-                <div className="w-full h-[100px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="w-full h-[100px] min-h-0">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <AreaChart data={attendanceData}>
                       <defs>
                         <linearGradient id="colorAtt" x1="0" y1="0" x2="0" y2="1">

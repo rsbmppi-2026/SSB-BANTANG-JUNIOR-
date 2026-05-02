@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Users, Target, Calendar, Activity, TrendingUp, Trophy, ChevronRight,
-  Plus, Clock, ArrowUpRight, UserSquare2, Image as ImageIcon,
-  ChevronLeft, Download, Star, Edit2, Trash2, Save, Loader2,
-  AlertTriangle, Filter, MoreHorizontal, DollarSign, HeartPulse, Swords
+  Users, Activity, Plus, Clock, 
+  Image as ImageIcon, ChevronLeft, ChevronRight, Trash2, Edit2, Save, Loader2, Video, Youtube, PlayCircle, AlertTriangle, Trophy, Star, ArrowUpRight, CheckCircle2
 } from 'lucide-react';
 import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  PieChart, Pie
+  PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid 
 } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Autoplay, Navigation, Pagination, EffectFade } from 'swiper/modules';
+import 'swiper/css';
+import 'swiper/css/navigation';
+import 'swiper/css/pagination';
+import 'swiper/css/effect-fade';
 import Layout from '../components/ui/Layout';
-import { useSettings } from '../App';
+import { useSettings, useAuth } from '../App';
 import { cn } from '../lib/utils';
 import { useCMSData } from '../lib/store';
 import { uploadFile } from '../lib/supabase';
@@ -21,103 +23,140 @@ import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { useNavigate } from 'react-router-dom';
 
 const initialSliders = [
-  { id: '1', title: 'SSB BANTANG', subtitle: 'JUNIOR ACADEMY', desc: 'Membentuk Generasi Juara Dengan Sistem Latihan Modern, Fasilitas Elite, dan Pendekatan Taktikal Terbaik.', img: "https://images.unsplash.com/photo-1543351611-58f69d7c1781?q=80&w=1200&auto=format&fit=crop" },
-  { id: '2', title: 'FASILITAS', subtitle: 'LATIHAN MODERN', desc: 'Dilengkapi dengan peralatan latihan standar FIFA untuk mendukung perkembangan pemain', img: "https://images.unsplash.com/photo-1518605368461-1ee7e54728f1?q=80&w=1200&auto=format&fit=crop" },
+  { id: '1', title: 'SSB BANTANG', subtitle: 'JUNIOR ACADEMY', description: 'Membentuk Generasi Juara Dengan Sistem Latihan Modern, Fasilitas Elite, dan Pendekatan Taktikal Terbaik.', img: "https://images.unsplash.com/photo-1543351611-58f69d7c1781?q=80&w=1200&auto=format&fit=crop", media_type: 'image' },
+  { id: '2', title: 'FASILITAS', subtitle: 'LATIHAN MODERN', description: 'Dilengkapi dengan peralatan latihan standar FIFA untuk mendukung perkembangan pemain', img: "https://images.unsplash.com/photo-1518605368461-1ee7e54728f1?q=80&w=1200&auto=format&fit=crop", media_type: 'image' },
 ];
 
-const attendanceData = [
-  { name: 'Sen', value: 85 }, { name: 'Sel', value: 92 }, { name: 'Rab', value: 88 },
-  { name: 'Kam', value: 95 }, { name: 'Jum', value: 90 }, { name: 'Sab', value: 98 }, { name: 'Min', value: 100 }
-];
+const getEmbedUrl = (url: string) => {
+  if (!url) return '';
+  
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    let videoId = '';
+    if (url.includes('v=')) videoId = url.split('v=')[1]?.split('&')[0];
+    else if (url.includes('youtu.be/')) videoId = url.split('youtu.be/')[1]?.split('?')[0];
+    else if (url.includes('embed/')) videoId = url.split('embed/')[1]?.split('?')[0];
+    
+    if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&rel=0&modestbranding=1&iv_load_policy=3&showinfo=0&enablejsapi=1&origin=${window.location.origin}`;
+  }
+  
+  if (url.includes('drive.google.com')) {
+    let fileId = '';
+    const match = url.match(/\/d\/(.+?)(\/|$)/);
+    if (match?.[1]) fileId = match[1];
+    else {
+      const idParam = url.split('id=')[1];
+      if (idParam) fileId = idParam.split('&')[0];
+    }
+    if (fileId) return `https://drive.google.com/file/d/${fileId}/preview`;
+  }
+  
+  return url;
+};
 
-const performanceData = [
-  { name: 'U-12', speed: 80, stamina: 85, tact: 70 },
-  { name: 'U-14', speed: 85, stamina: 90, tact: 80 },
-  { name: 'U-16', speed: 90, stamina: 95, tact: 85 },
-];
-
-const revenueData = [
-  { name: 'Jan', income: 45 }, { name: 'Feb', income: 52 }, { name: 'Mar', income: 48 },
-  { name: 'Apr', income: 61 }, { name: 'Mei', income: 55 }, { name: 'Jun', income: 67 }
-];
-
-const skillsRadarData = [
-  { subject: 'Dribbling', A: 120, B: 110, fullMark: 150 },
-  { subject: 'Passing', A: 98, B: 130, fullMark: 150 },
-  { subject: 'Shooting', A: 86, B: 130, fullMark: 150 },
-  { subject: 'Pace', A: 99, B: 100, fullMark: 150 },
-  { subject: 'Strength', A: 85, B: 90, fullMark: 150 },
-  { subject: 'Vision', A: 65, B: 85, fullMark: 150 },
-  { subject: 'Tactical', A: 105, B: 115, fullMark: 150 },
-  { subject: 'Teamwork', A: 130, B: 95, fullMark: 150 },
-];
-
-const ageCategoryStats = [
-  { name: 'U-12', value: 145, color: '#3B82F6' },
-  { name: 'U-14', value: 180, color: '#10B981' },
-  { name: 'U-16', value: 127, color: 'var(--color-primary)' },
-];
-
-const topPlayers = [
-  { id: 1, name: 'Bima Sakti', age: 14, score: 98, attendance: 100, team: 'U-14 Pro' },
-  { id: 2, name: 'Arhan Pratama', age: 16, score: 95, attendance: 95, team: 'U-16 Elite' },
-  { id: 3, name: 'Evan Dimas', age: 12, score: 92, attendance: 98, team: 'U-12 Starter' },
-  { id: 4, name: 'Witan Sulaiman', age: 15, score: 89, attendance: 90, team: 'U-16 Elite' },
-  { id: 5, name: 'Egy Maulana', age: 14, score: 88, attendance: 85, team: 'U-14 Pro' },
-];
-
-const StatCard = ({ title, value, icon: Icon, subtitle, trend, trendUp, isAlert }: any) => (
-  <div className={cn(
-    "bg-[#111827] border rounded-2xl p-5 flex flex-col relative overflow-hidden transition-all hover:border-[var(--color-primary)]/50 group",
-    isAlert ? "border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.05)]" : "border-white/10"
-  )}>
-    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/5 to-transparent rounded-full -translate-y-16 translate-x-16 group-hover:scale-110 transition-transform duration-500" />
-    <div className="flex justify-between items-start mb-4 relative z-10">
-      <p className="text-white/60 text-sm font-medium">{title}</p>
-      <div className={cn("p-2 rounded-lg bg-white/5", isAlert ? "text-red-400" : "text-[var(--color-primary)]")}>
-        <Icon className="w-5 h-5" />
+// Custom Tooltip for Recharts
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-[#0c162d]/90 backdrop-blur-md border border-white/10 rounded-xl p-3 shadow-2xl">
+        <p className="text-white/60 text-[10px] font-black uppercase tracking-widest mb-1">{label}</p>
+        {payload.map((p: any, i: number) => (
+          <p key={i} className="text-white font-bold text-sm flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color || p.fill }} />
+            {p.name}: <span className="font-black">{p.value}</span>
+          </p>
+        ))}
       </div>
-    </div>
-    <h3 className="text-3xl font-display font-black text-white mb-2 relative z-10">{value}</h3>
-    <div className="flex items-center gap-2 text-xs relative z-10 mt-auto">
-      <span className={cn("flex items-center gap-1 font-bold", isAlert ? "text-red-400" : (trendUp ? "text-emerald-400" : "text-amber-400"))}>
-        {isAlert ? <AlertTriangle className="w-3 h-3" /> : (trendUp ? <TrendingUp className="w-3 h-3" /> : <Activity className="w-3 h-3" />)}
-        {trend}
-      </span>
-      <span className="text-white/40 font-medium truncate">{subtitle}</span>
-    </div>
-  </div>
-);
-
-const QuickAction = ({ icon: Icon, label, onClick }: any) => (
-  <button onClick={onClick} className="flex items-center gap-3 bg-[#111827] hover:bg-white/10 border border-white/10 p-4 rounded-2xl transition-all w-full text-left group">
-    <div className="p-2.5 rounded-xl bg-white/5 text-[var(--color-primary)] group-hover:bg-[var(--color-primary)] group-hover:text-black transition-colors"><Icon className="w-5 h-5" /></div>
-    <span className="text-sm font-bold tracking-wide text-white/90 group-hover:text-white">{label}</span>
-  </button>
-);
+    );
+  }
+  return null;
+};
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const { appName } = useSettings();
   const navigate = useNavigate();
   const { data: sliders, addItems, updateItem, deleteItem } = useCMSData('dashboard_sliders', initialSliders);
+  const { data: playersList } = useCMSData('players', [] as any[]);
   
-  const [currentSlide, setCurrentSlide] = useState(0);
   const [isSliderModalOpen, setIsSliderModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editingSlider, setEditingSlider] = useState<any>(null);
-  const [sliderForm, setSliderForm] = useState({ title: '', subtitle: '', desc: '', img: '' });
+  const [sliderForm, setSliderForm] = useState({ 
+    title: '', subtitle: '', description: '', img: '', media_type: 'image', 
+    video_url: '', autoplay: true, loop: true
+  });
+  const [swiperInstance, setSwiperInstance] = useState<any>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, id: '' });
 
   useEffect(() => {
-    if (sliders.length === 0) return;
-    const timer = setInterval(() => setCurrentSlide((prev) => (prev + 1) % sliders.length), 8000);
-    return () => clearInterval(timer);
-  }, [sliders]);
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.origin.includes("youtube.com")) return;
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data.event === "onStateChange" && data.info === 0) { // 0 = Ended
+          if (swiperInstance) swiperInstance.slideNext();
+        }
+      } catch (e) {}
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [swiperInstance]);
 
-  const nextSlide = () => setCurrentSlide((p) => (p + 1) % sliders.length);
-  const prevSlide = () => setCurrentSlide((p) => (p - 1 + sliders.length) % sliders.length);
+  // Derived Data for Dashboard
+  const stats = useMemo(() => {
+    const totalPlayers = playersList.length;
+    
+    // Average Attendance
+    const avgAttendance = playersList.length > 0
+      ? (playersList.reduce((acc: number, p: any) => acc + (p.attendance || 0), 0) / playersList.length).toFixed(1)
+      : 0;
+      
+    // Average Overall Score
+    const avgOverall = playersList.length > 0
+      ? (playersList.reduce((acc: number, p: any) => acc + (p.overall || 0), 0) / playersList.length).toFixed(1)
+      : 0;
 
-  const handleOpenSliderAdd = () => { setEditingSlider(null); setSliderForm({ title: '', subtitle: '', desc: '', img: '' }); setIsSliderModalOpen(true); };
+    // Fast robust sorting by overall (with fallback to 0)
+    const sortedPlayers = [...playersList].sort((a: any, b: any) => (b.overall || 0) - (a.overall || 0));
+    const topPlayers = sortedPlayers.slice(0, 3);
+    const bestPlayer = topPlayers[0] || null;
+
+    // Category Distribution (Pie Chart)
+    const categoryCount: Record<string, number> = {};
+    playersList.forEach((p: any) => {
+      const cat = p.category || 'Lainnya';
+      categoryCount[cat] = (categoryCount[cat] || 0) + 1;
+    });
+    
+    const pieColors = ['#3B82F6', '#10B981', '#EAB308', '#8B5CF6', '#F43F5E', '#14B8A6'];
+    const categoryData = Object.keys(categoryCount).map((key, i) => ({
+      name: key,
+      value: categoryCount[key],
+      color: pieColors[i % pieColors.length]
+    })).sort((a,b) => b.value - a.value);
+
+    // Performance Trend (Simulated via Category Averages for Mini Chart)
+    const performanceData = Object.keys(categoryCount).map(key => {
+      const catPlayers = playersList.filter((p: any) => p.category === key);
+      const catAvg = catPlayers.reduce((acc: number, p: any) => acc + (p.overall || 0), 0) / catPlayers.length;
+      return {
+        name: key,
+        value: Math.round(catAvg),
+        color: pieColors[0]
+      }
+    });
+
+    return { totalPlayers, avgAttendance, avgOverall, topPlayers, bestPlayer, categoryData, performanceData };
+  }, [playersList]);
+
+  const activeSlider = sliders[activeIndex] || sliders[0];
+
+  const handleOpenSliderAdd = () => { 
+    setEditingSlider(null); 
+    setSliderForm({ title: '', subtitle: '', description: '', img: '', media_type: 'image', video_url: '', autoplay: true, loop: true }); 
+    setIsSliderModalOpen(true); 
+  };
   const handleOpenSliderEdit = (slider: any) => { setEditingSlider(slider); setSliderForm(slider); setIsSliderModalOpen(true); };
   
   const handleSliderSubmit = (e: React.FormEvent) => {
@@ -133,9 +172,7 @@ export default function Dashboard() {
       setIsUploading(true);
       try {
         const publicUrl = await uploadFile(file, 'dashboard');
-        if (publicUrl) {
-          setSliderForm({ ...sliderForm, img: publicUrl });
-        }
+        if (publicUrl) setSliderForm({ ...sliderForm, img: publicUrl });
       } catch (error) {
         console.error("Upload failed:", error);
       } finally {
@@ -144,293 +181,333 @@ export default function Dashboard() {
     }
   };
 
-  const d = new Date();
-  const dateString = d.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  // Shared Number Counter Animation Component conceptually (using state or direct render)
+  // For simplicity, directly rendering as static formatted values since framer-motion useSpring requires more setup,
+  // but CSS fading covers the "smoothness".
 
   return (
     <Layout>
-      <div className="flex flex-col gap-6 pb-12 w-full max-w-[1600px] mx-auto animate-in fade-in duration-700 font-sans">
+      <div className="flex flex-col gap-8 pb-16 w-full max-w-7xl mx-auto px-4 md:px-8 mt-4 animate-in fade-in zoom-in duration-1000">
         
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
-          <div>
-            <h1 className="text-2xl font-display font-black text-white tracking-tight uppercase">Dashboard <span className="text-[var(--color-primary)]">BANTANG JUNIOR</span></h1>
-            <p className="text-sm text-white/50 mt-1 flex items-center gap-2 font-medium">
-              Selamat Datang di Aplikasi Sekolah Sepak Bola Bantang Junior
-            </p>
+        <div className="border-b border-white/5 pb-6">
+          <div className="flex items-center gap-2 mb-2">
+             <span className="w-4 h-1 bg-yellow-500 rounded-full" />
+             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/50">Overview</span>
           </div>
-          <div className="w-full md:w-auto flex items-center gap-3">
-             <button className="flex items-center gap-2 px-4 py-2 bg-[#131b2f] text-white font-bold text-sm rounded-lg hover:bg-white/5 transition-colors border border-white/10 shadow-sm">
-               <Calendar className="w-4 h-4 text-white/50" /> Pilih Tanggal
-             </button>
-          </div>
+          <h1 className="text-3xl lg:text-4xl font-display font-black tracking-tight leading-none italic uppercase">
+            <span className="text-white">SSB</span> <span className="text-[#fdc700]">BANTANG</span> <span className="text-blue-400">JUNIOR</span>
+          </h1>
         </div>
 
-        {/* HERO SLIDER (Moved to top) */}
-        <div className="relative w-full h-[300px] md:h-[400px] rounded-2xl overflow-hidden border border-white/10 group shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-          <AnimatePresence mode="wait">
-            {sliders.length > 0 && sliders[currentSlide] && (
-              <motion.div key={sliders[currentSlide].id} initial={{ opacity: 0, scale: 1.05 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 8 }} className="absolute inset-0">
-                <img src={sliders[currentSlide].img} alt="Carousel" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0B1220] via-[#0B1220]/40 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-8 z-10 text-white">
-                  <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.5, duration: 0.8 }}>
-                    <div className="flex items-center gap-3 mb-2">
-                      <h1 className="text-2xl md:text-4xl font-display font-black tracking-tighter text-white drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)] uppercase">
-                        {sliders[currentSlide].title} <span className="text-[var(--color-primary)]">{sliders[currentSlide].subtitle}</span>
-                      </h1>
-                    </div>
-                    <p className="text-sm md:text-base text-white/80 max-w-2xl font-medium tracking-wide drop-shadow-md">{sliders[currentSlide].desc}</p>
-                  </motion.div>
+        {/* TOP SUMMARY (4 Cards - 2x2 Layout) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 xl:gap-8">
+           {/* Card 1: Total Pemain */}
+           <div className="bg-[#0c162d]/80 backdrop-blur-xl border border-white/5 hover:border-blue-500/20 p-5 xl:p-6 rounded-[2rem] shadow-xl flex flex-col justify-between relative overflow-hidden group transition-all duration-300 min-h-[140px]">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full filter blur-3xl -translate-y-10 translate-x-10 group-hover:bg-blue-500/20 transition-all pointer-events-none" />
+              <div className="flex items-center gap-3 relative z-10 mb-4">
+                 <div className="p-2 sm:p-2.5 rounded-xl bg-blue-500/10 text-blue-400 shrink-0">
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+                 </div>
+                 <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-white/40 truncate">Total Pemain</span>
+              </div>
+              <div className="relative z-10">
+                 <h2 className="text-3xl sm:text-4xl font-display font-black text-white tracking-tight group-hover:text-blue-400 transition-colors">{stats.totalPlayers}</h2>
+                 <p className="text-[10px] sm:text-xs text-emerald-400 font-bold mt-1 flex items-center gap-1 truncate"><ArrowUpRight className="w-3 h-3 shrink-0"/> Active Roster</p>
+              </div>
+           </div>
+
+           {/* Card 2: Kehadiran */}
+           <div className="bg-[#0c162d]/80 backdrop-blur-xl border border-white/5 hover:border-emerald-500/20 p-5 xl:p-6 rounded-[2rem] shadow-xl flex flex-col justify-between relative overflow-hidden group transition-all duration-300 min-h-[140px]">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full filter blur-3xl -translate-y-10 translate-x-10 group-hover:bg-emerald-500/20 transition-all pointer-events-none" />
+              <div className="flex items-center gap-3 relative z-10 mb-4">
+                 <div className="p-2 sm:p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
+                    <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                 </div>
+                 <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-white/40 truncate">Kehadiran</span>
+              </div>
+              <div className="relative z-10">
+                 <h2 className="text-3xl sm:text-4xl font-display font-black text-white tracking-tight group-hover:text-emerald-400 transition-colors">{stats.avgAttendance}%</h2>
+                 <p className="text-[10px] sm:text-xs text-white/30 font-bold mt-1 truncate">Sesi Latihan Bulan Ini</p>
+              </div>
+           </div>
+
+           {/* Card 3: Top Ranking Pemain */}
+           <div className="bg-[#0c162d]/80 backdrop-blur-xl border border-white/5 hover:border-yellow-500/20 p-5 xl:p-6 rounded-[2rem] shadow-xl flex flex-col justify-between relative overflow-hidden group transition-all duration-300 min-h-[140px]">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full filter blur-3xl -translate-y-10 translate-x-10 group-hover:bg-yellow-500/20 transition-all pointer-events-none" />
+              <div className="flex justify-between items-start relative z-10 mb-4 gap-2">
+                 <div className="flex items-center gap-3 min-w-0">
+                   <div className="p-2 sm:p-2.5 rounded-xl bg-yellow-500/10 text-yellow-500 shrink-0">
+                      <Star className="w-4 h-4 sm:w-5 sm:h-5" />
+                   </div>
+                   <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-white/40 truncate">Bintang Tim</span>
+                 </div>
+                 {stats.bestPlayer && (
+                   <span className="text-[9px] sm:text-[10px] font-black text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded-md shrink-0">RANK #1</span>
+                 )}
+              </div>
+              <div className="relative z-10">
+                 {stats.bestPlayer ? (
+                   <>
+                     <h2 className="text-lg sm:text-xl font-display font-black text-white tracking-tight truncate group-hover:text-yellow-400 transition-colors uppercase">{stats.bestPlayer.name}</h2>
+                     <p className="text-[10px] sm:text-xs text-white/50 font-bold mt-0.5 truncate">{stats.bestPlayer.category} • OVR {stats.bestPlayer.overall}</p>
+                   </>
+                 ) : (
+                   <p className="text-xs sm:text-sm text-white/30 font-medium">Belum ada data</p>
+                 )}
+              </div>
+           </div>
+
+           {/* Card 4: Top Performa Tim */}
+           <div className="bg-[#0c162d]/80 backdrop-blur-xl border border-white/5 hover:border-indigo-500/20 p-5 xl:p-6 rounded-[2rem] shadow-xl flex flex-col justify-between relative overflow-hidden group transition-all duration-300 min-h-[140px]">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full filter blur-3xl -translate-y-10 translate-x-10 group-hover:bg-indigo-500/20 transition-all pointer-events-none" />
+              <div className="flex items-center gap-3 relative z-10 mb-4">
+                 <div className="p-2 sm:p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 shrink-0">
+                    <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
+                 </div>
+                 <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-white/40 truncate">Rating Tim (Avg)</span>
+              </div>
+              <div className="relative z-10 flex items-end gap-2 sm:gap-3">
+                 <h2 className="text-3xl sm:text-4xl font-display font-black text-white tracking-tight group-hover:text-indigo-400 transition-colors">{stats.avgOverall}</h2>
+                 <span className="text-[10px] sm:text-sm text-white/30 font-bold mb-1 shrink-0">/ 100</span>
+              </div>
+           </div>
+        </div>
+
+        {/* MIDDLE SECTION (Full Width Slider) */}
+        <div className="bg-[#0c162d]/60 border border-white/5 rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col h-[400px] md:h-[520px] relative">
+           <div className="flex-1 w-full h-full relative">
+             {sliders.length > 0 ? (
+               <Swiper
+                 modules={[Autoplay, Navigation, Pagination, EffectFade]}
+                 effect="fade" spaceBetween={0} slidesPerView={1} loop={true} speed={1000}
+                 onSwiper={setSwiperInstance}
+                 onSlideChange={(swiper) => {
+                   setActiveIndex(swiper.realIndex);
+                   const activeS = sliders[swiper.realIndex];
+                   if (activeS?.media_type === 'video') swiper.autoplay.stop();
+                   else swiper.autoplay.start();
+                 }}
+                 autoplay={{ delay: 5000, disableOnInteraction: false }}
+                 className="w-full h-full group"
+               >
+                 {sliders.map((slider: any) => (
+                   <SwiperSlide key={slider.id} className="relative w-full h-full">
+                     <div className="absolute inset-0 z-0 bg-[#080d19]">
+                        {slider.media_type === 'video' ? (
+                          <>
+                            <iframe src={getEmbedUrl(slider.video_url)} className="absolute inset-0 w-full h-full scale-[1.05] pointer-events-none" allow="autoplay; muted" />
+                            {/* Minimal dark overlay to ensure text is readable */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+                          </>
+                        ) : (
+                          <>
+                            <img src={slider.img} alt="" className="absolute inset-0 w-full h-full object-cover scale-[1.02]" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#0c162d] via-black/20 to-transparent" />
+                          </>
+                        )}
+                     </div>
+
+                     {/* Minimal Text Overlay at bottom */}
+                     <div className="absolute bottom-0 left-0 right-0 p-8 pt-24 z-10 flex justify-between items-end">
+                        <div className="max-w-2xl">
+                           <h3 className="text-2xl md:text-4xl font-display font-black text-white uppercase tracking-tight text-shadow-sm mb-2">{slider.title}</h3>
+                           <p className="text-sm md:text-base font-medium text-white/70 line-clamp-2 md:line-clamp-none">{slider.subtitle} • {slider.description}</p>
+                        </div>
+                        
+                        {/* Admin Controls */}
+                        <div className="flex gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); handleOpenSliderEdit(slider); }} className="w-10 h-10 rounded-xl bg-black/50 backdrop-blur-md border border-white/10 text-white/50 hover:text-white flex items-center justify-center transition-all"><Edit2 className="w-4 h-4" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ isOpen: true, id: slider.id }); }} className="w-10 h-10 rounded-xl bg-red-500/20 backdrop-blur-md border border-white/10 text-red-400 hover:text-red-500 hover:bg-red-500/30 flex items-center justify-center transition-all"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                     </div>
+                   </SwiperSlide>
+                 ))}
+               </Swiper>
+             ) : (
+               <div className="w-full h-full flex flex-col items-center justify-center text-white/20 bg-[#080d19]">
+                 <ImageIcon className="w-12 h-12 mb-4" />
+                 <p className="text-sm font-bold uppercase tracking-widest">No Banner</p>
+               </div>
+             )}
+           </div>
+        </div>
+
+        {/* TOP RANKING PEMAIN (Horizontal layout below slider) */}
+        <div className="bg-[#0c162d]/80 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-6 sm:p-8 shadow-xl flex flex-col gap-6">
+           <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                 <div className="w-2.5 h-2.5 rounded-full bg-[#fdc700] shadow-[0_0_15px_rgba(253,199,0,0.8)]" />
+                 <h3 className="text-base font-black uppercase tracking-widest text-white">Top Performance Players</h3>
+              </div>
+              <button 
+                onClick={() => navigate('/players')} 
+                className="group flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/5 transition-all text-blue-400 text-xs font-bold uppercase tracking-widest"
+              >
+                View Full Roster <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </button>
+           </div>
+
+           <div className="grid grid-cols-1 gap-4 xl:gap-6">
+              {stats.topPlayers.length > 0 ? stats.topPlayers.map((player: any, idx: number) => (
+                <div 
+                  key={player.id} 
+                  className={cn(
+                    "relative group cursor-pointer p-1 rounded-[2rem] transition-all duration-500",
+                    idx === 0 ? "bg-gradient-to-br from-[#fdc700]/20 via-[#fdc700]/5 to-transparent" : "bg-white/[0.02]"
+                  )} 
+                  onClick={() => navigate(`/players/${player.id}`)}
+                >
+                   <div className={cn(
+                     "relative flex items-center gap-4 p-5 rounded-[1.9rem] border transition-all duration-500 bg-[#0c162d]/90",
+                     idx === 0 ? "border-[#fdc700]/30 shadow-[0_0_30px_rgba(253,199,0,0.1)]" : "border-white/5 hover:border-white/10"
+                   )}>
+                      {/* Rank badge */}
+                      <div className={cn(
+                        "absolute -top-2 -left-2 w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black z-20 shadow-lg",
+                        idx === 0 ? "bg-[#fdc700] text-black" : idx === 1 ? "bg-slate-300 text-slate-800" : "bg-orange-400 text-orange-950"
+                      )}>
+                        #{idx + 1}
+                      </div>
+
+                      <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 border border-white/10 group-hover:scale-105 transition-transform duration-500">
+                         <img src={player.photo || 'https://via.placeholder.com/150'} alt={player.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                         <h4 className={cn("text-lg font-display font-black truncate tracking-tight uppercase", idx === 0 ? "text-[#fdc700]" : "text-white")}>
+                           {player.name}
+                         </h4>
+                         <p className="text-[10px] text-white/40 uppercase tracking-widest font-black mt-1 flex items-center gap-2">
+                           {player.category} <span className="w-1 h-1 rounded-full bg-white/20" /> {player.position}
+                         </p>
+                      </div>
+                      <div className="shrink-0 text-right bg-white/5 px-3 py-2 rounded-xl border border-white/5">
+                         <span className={cn("text-2xl font-display font-black leading-none", idx === 0 ? "text-[#fdc700]" : "text-white/80")}>
+                           {player.overall || 0}
+                         </span>
+                         <span className="block text-[8px] text-white/30 uppercase font-black tracking-widest mt-1">OVR</span>
+                      </div>
+                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              )) : (
+                <div className="text-center py-12 bg-white/5 rounded-[2rem] border border-dashed border-white/10">
+                  <p className="text-sm text-white/30 font-bold uppercase tracking-widest">No rating data available</p>
+                </div>
+              )}
+           </div>
+        </div>
 
-          {/* Action Buttons (Bottom Right) */}
-          <div className="absolute bottom-6 right-6 z-30 flex items-center gap-2">
-            {sliders.length > 0 && sliders[currentSlide] && (
-              <>
-                <button onClick={() => handleOpenSliderEdit(sliders[currentSlide])} className="p-2 rounded-lg bg-black/60 hover:bg-[var(--color-primary)] hover:text-black text-white transition-all backdrop-blur"><Edit2 className="w-4 h-4" /></button>
-                <button onClick={() => setDeleteConfirm({ isOpen: true, id: sliders[currentSlide].id })} className="p-2 rounded-lg bg-black/60 hover:bg-red-500 text-white transition-all backdrop-blur"><Trash2 className="w-4 h-4" /></button>
-              </>
-            )}
-            <button onClick={handleOpenSliderAdd} className="p-2 rounded-lg bg-[var(--color-primary)] text-black hover:bg-yellow-500 transition-all shadow-[0_0_15px_var(--color-primary-glow)]">
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-
-          {sliders.length > 1 && (
-            <>
-              <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all z-20"><ChevronLeft className="w-5 h-5" /></button>
-              <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all z-20"><ChevronRight className="w-5 h-5" /></button>
-              <div className="absolute top-4 right-4 flex items-center gap-2 z-30 bg-black/40 backdrop-blur px-3 py-1.5 rounded-full border border-white/10 text-[10px] font-bold text-white tracking-widest uppercase">
-                 {currentSlide + 1} / {sliders.length}
+        {/* BOTTOM SECTION (Stacked Charts) */}
+        <div className="grid grid-cols-1 gap-8">
+           
+           {/* DIAGRAM DISTRIBUSI UMUR */}
+           <div className="bg-[#0c162d]/80 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-7 shadow-xl hover:border-blue-500/20 transition-all flex flex-col">
+              <div className="flex items-center gap-3 mb-6">
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  <h3 className="text-sm font-black uppercase tracking-widest text-white">Distribusi Kelas Umur</h3>
               </div>
-            </>
-          )}
-          
-          {sliders.length === 0 && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-white/40">
-              <ImageIcon className="w-12 h-12 mb-4 opacity-50" />
-              <p className="text-sm font-medium">Belum ada banner</p>
-              <button onClick={handleOpenSliderAdd} className="mt-4 px-4 py-2 bg-[var(--color-primary)] text-black text-xs font-bold rounded-lg hover:bg-yellow-500">Upload Banner Pertama</button>
-            </div>
-          )}
-        </div>
-
-        {/* SUMMARY CARDS (8 Cards) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title="Total Pemain" value="452" icon={Users} trend="+12" trendUp={true} subtitle="Bulan ini" />
-          <StatCard title="Total Pelatih" value="12" icon={UserSquare2} trend="Optimal" trendUp={true} subtitle="Rasio 1:37" />
-          <StatCard title="Kehadiran" value="94%" icon={Activity} trend="-1.2%" trendUp={false} subtitle="Rata-rata minggu ini" />
-          <StatCard title="Income" value="Rp 45.2M" icon={DollarSign} trend="+15%" trendUp={true} subtitle="SPP & Pendaftaran" />
-          
-          <StatCard title="Jadwal Minggu Ini" value="18" icon={Calendar} trend="Padat" trendUp={true} subtitle="4 Laga Uji Coba" />
-          <StatCard title="Pemain Terbaik" value="Bima. S" icon={Trophy} trend="98 PTS" trendUp={true} subtitle="U-14 Pro" />
-          <StatCard title="Cedera Aktif" value="3" icon={HeartPulse} trend="+1" trendUp={false} subtitle="Dalam masa pemulihan" isAlert={true} />
-          <StatCard title="Match Mendatang" value="SSB Garuda" icon={Swords} trend="2 Hari" trendUp={true} subtitle="Final Liga TopSkor" />
-        </div>
-
-        {/* QUICK ACTIONS */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <QuickAction icon={Plus} label="Tambah Pemain" onClick={() => navigate('/players')} />
-          <QuickAction icon={Target} label="Input Nilai" onClick={() => navigate('/performance')} />
-          <QuickAction icon={Calendar} label="Buat Jadwal" onClick={() => navigate('/schedule')} />
-          <QuickAction icon={Download} label="Export PDF" onClick={() => {}} />
-        </div>
-
-        {/* CHARTS GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          
-          {/* Skill Growth (Area Chart) */}
-          <div className="bg-[#111827] border border-white/10 rounded-2xl p-6 xl:col-span-2">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-base font-bold text-white uppercase tracking-wider">Skill Growth</h3>
-              <select className="bg-white/5 border border-white/10 text-white text-xs px-3 py-1.5 rounded-lg focus:outline-none">
-                <option>6 Bulan Terakhir</option>
-              </select>
-            </div>
-            <div className="w-full h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={attendanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="rgba(255,255,255,0.4)" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }} />
-                  <Area type="monotone" dataKey="value" stroke="var(--color-primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Performance Radar */}
-          <div className="bg-[#111827] border border-white/10 rounded-2xl p-6 flex flex-col">
-             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-base font-bold text-white uppercase tracking-wider">Performance Radar</h3>
-            </div>
-            <div className="w-full flex-1 min-h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={skillsRadarData}>
-                  <PolarGrid stroke="rgba(255,255,255,0.1)" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 10 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
-                  <Radar name="U-14 Pro" dataKey="A" stroke="var(--color-primary)" fill="var(--color-primary)" fillOpacity={0.5} />
-                  <Radar name="U-16 Elite" dataKey="B" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.3} />
-                  <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Attendance Bar */}
-          <div className="bg-[#111827] border border-white/10 rounded-2xl p-6 xl:col-span-2">
-             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-base font-bold text-white uppercase tracking-wider">Attendance Rate</h3>
-            </div>
-            <div className="w-full h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={attendanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="rgba(255,255,255,0.4)" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
-                  <Bar dataKey="value" name="Attendance (%)" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Revenue */}
-          <div className="bg-[#111827] border border-white/10 rounded-2xl p-6">
-             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-base font-bold text-white uppercase tracking-wider">Revenue</h3>
-            </div>
-            <div className="w-full h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis dataKey="name" stroke="rgba(255,255,255,0.4)" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="rgba(255,255,255,0.4)" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
-                  <Bar dataKey="income" name="Income (Juta)" fill="#10B981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Age Category Stats (Pie) */}
-          <div className="bg-[#111827] border border-white/10 rounded-2xl p-6">
-             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-base font-bold text-white uppercase tracking-wider">Age Category</h3>
-            </div>
-            <div className="w-full h-[250px] flex items-center justify-center relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={ageCategoryStats} innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value">
-                    {ageCategoryStats.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+              <div className="flex-1 flex flex-col md:flex-row items-center gap-8">
+                 <div className="w-[200px] h-[200px] relative shrink-0 min-w-0 min-h-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <PieChart>
+                         <Pie data={stats.categoryData} innerRadius={65} outerRadius={90} paddingAngle={2} dataKey="value" stroke="none">
+                           {stats.categoryData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                         </Pie>
+                         <RechartsTooltip content={<CustomTooltip />} />
+                       </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
+                       <span className="text-3xl font-display font-black text-white">{stats.totalPlayers}</span>
+                       <span className="text-[9px] text-white/40 uppercase font-bold tracking-widest">Total</span>
+                    </div>
+                 </div>
+                 <div className="flex-1 grid grid-cols-2 gap-x-4 gap-y-3 w-full">
+                    {stats.categoryData.map((cat, i) => (
+                      <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                         <div className="flex items-center gap-2">
+                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
+                           <span className="text-xs font-bold text-white/80">{cat.name}</span>
+                         </div>
+                         <span className="text-sm font-display font-black text-white">{cat.value}</span>
+                      </div>
                     ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '8px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
-                <span className="text-3xl font-black text-white">452</span>
-                <span className="text-xs text-white/50 uppercase tracking-widest">Pemain</span>
+                 </div>
               </div>
-            </div>
-          </div>
+           </div>
 
-          {/* Top Players Table */}
-          <div className="bg-[#111827] border border-white/10 rounded-2xl p-6 overflow-hidden xl:col-span-2 border-t-4 border-t-[var(--color-primary)]">
-              <div className="flex justify-between items-center mb-5">
-              <h3 className="text-base font-bold text-white uppercase tracking-wider">Top 5 Pemain</h3>
-              <button className="text-xs font-semibold text-[var(--color-primary)] hover:underline">Lihat Semua</button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-white/10 pb-2 text-[10px] uppercase tracking-widest text-white/40">
-                    <th className="pb-3 font-semibold w-full">Nama Pemain</th>
-                    <th className="pb-3 text-center font-semibold px-4">Skor</th>
-                    <th className="pb-3 text-right font-semibold">Hadir</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
-                  {topPlayers.map((player) => (
-                    <tr key={player.id} className="border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
-                      <td className="py-4">
-                        <p className="font-semibold text-white truncate">{player.name}</p>
-                        <p className="text-xs text-[var(--color-primary)] font-bold truncate">{player.team}</p>
-                      </td>
-                      <td className="py-4 text-center text-white/90 font-black px-4">{player.score}</td>
-                      <td className="py-4 text-right">
-                        <span className={cn("px-3 py-1 rounded-md text-[10px] font-bold", player.attendance > 90 ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400")}>
-                          {player.attendance}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+           {/* PERFORMANCE OVERVIEW MINI CHART */}
+           <div className="bg-[#0c162d]/80 backdrop-blur-xl border border-white/5 rounded-[2.5rem] p-7 shadow-xl hover:border-blue-500/20 transition-all flex flex-col">
+              <div className="flex items-center gap-3 mb-8">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <h3 className="text-sm font-black uppercase tracking-widest text-white">Rata-Rata Rating Performa</h3>
+              </div>
+              <div className="w-full h-[300px] relative min-w-0 min-h-0">
+                 <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={stats.performanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                       <defs>
+                          <linearGradient id="colorPerf" x1="0" y1="0" x2="0" y2="1">
+                             <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.4} />
+                             <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                          </linearGradient>
+                       </defs>
+                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                       <XAxis dataKey="name" stroke="rgba(255,255,255,0.2)" fontSize={10} tickLine={false} axisLine={false} tick={{ fontWeight: 700 }} />
+                       <YAxis stroke="rgba(255,255,255,0.2)" fontSize={10} tickLine={false} axisLine={false} tick={{ fontWeight: 700 }} domain={[('dataMin' as any) - 10, 100]} />
+                       <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
+                       <Area type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={3} fill="url(#colorPerf)" animationDuration={1500} />
+                    </AreaChart>
+                 </ResponsiveContainer>
+              </div>
+           </div>
 
         </div>
       </div>
 
-      <Modal isOpen={isSliderModalOpen} onClose={() => setIsSliderModalOpen(false)} title={editingSlider ? "Edit Banner" : "Tambah Banner"}>
-        <form onSubmit={handleSliderSubmit} className="space-y-4">
-          <div className="flex justify-center mb-4">
-           <div className="relative group w-full h-40">
-              <div className="w-full h-full rounded-xl overflow-hidden border border-white/10 group-hover:border-[var(--color-primary)] transition-colors relative">
-                {isUploading && (
-                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
-                    <Loader2 className="w-6 h-6 text-[var(--color-primary)] animate-spin" />
-                  </div>
-                )}
-                {sliderForm.img ? (
-                  <img src={sliderForm.img} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-[#111827] flex flex-col items-center justify-center text-white/30">
-                    <ImageIcon className="w-6 h-6 mb-2" />
-                    <span className="text-[10px] uppercase tracking-widest font-bold">Upload Gambar</span>
-                  </div>
-                )}
-              </div>
-              <label className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-xl">
-                <div className="flex items-center gap-2 bg-[var(--color-primary)] text-black px-4 py-2 rounded-lg font-bold text-xs shadow-lg">
-                  <Plus className="w-4 h-4" /> Pilih File
+      {/* Editor Modal for Slider remains functional */}
+      <Modal isOpen={isSliderModalOpen} onClose={() => setIsSliderModalOpen(false)} title={editingSlider ? "Edit Banner Content" : "Create New Banner"}>
+        <form onSubmit={handleSliderSubmit} className="space-y-5">
+           {/* Form Content - Same structure just keeping it functional */}
+           <div className="grid grid-cols-2 gap-3 p-1 bg-white/5 rounded-xl border border-white/10 shrink-0">
+             <button type="button" onClick={() => setSliderForm({...sliderForm, media_type: 'image'})} className={cn("py-2.5 rounded-lg flex gap-2 justify-center items-center text-[10px] font-black uppercase tracking-widest transition-all", sliderForm.media_type === 'image' ? "bg-white text-black" : "text-white/40")}>
+               <ImageIcon className="w-3.5 h-3.5" /> Image
+             </button>
+             <button type="button" onClick={() => setSliderForm({...sliderForm, media_type: 'video'})} className={cn("py-2.5 rounded-lg flex gap-2 justify-center items-center text-[10px] font-black uppercase tracking-widest transition-all", sliderForm.media_type === 'video' ? "bg-emerald-500 text-white" : "text-white/40")}>
+               <Video className="w-3.5 h-3.5" /> Video
+             </button>
+           </div>
+           
+           <div className="space-y-4">
+             {sliderForm.media_type === 'image' ? (
+                <div className="relative w-full h-40 bg-black/40 rounded-xl border border-dashed border-white/20 flex items-center justify-center group overflow-hidden">
+                   {sliderForm.img ? <img src={sliderForm.img} className="w-full h-full object-cover" /> : <div className="text-white/30 text-xs font-bold uppercase tracking-widest">Upload</div>}
+                   {isUploading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-blue-500"><Loader2 className="animate-spin w-8 h-8" /></div>}
+                   <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity z-10 text-xs font-bold text-white uppercase tracking-widest"><Plus className="w-4 h-4 mr-2"/> Browse<input type="file" onChange={handleImageUpload} className="hidden"/></label>
                 </div>
-                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-              </label>
-            </div>
-          </div>
-          <div>
-            <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1.5 block">Judul Kiri</label>
-            <input type="text" required value={sliderForm.title} onChange={(e) => setSliderForm({...sliderForm, title: e.target.value})} className="w-full bg-[#111827] border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-[var(--color-primary)]" placeholder="Cth: BANTANG JUNIOR" />
-          </div>
-          <div>
-            <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1.5 block">Judul Kanan (Highlight Kuning)</label>
-            <input type="text" required value={sliderForm.subtitle} onChange={(e) => setSliderForm({...sliderForm, subtitle: e.target.value})} className="w-full bg-[#111827] border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-[var(--color-primary)]" placeholder="Cth: FOOTBALL ACADEMY" />
-          </div>
-          <div>
-            <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1.5 block">Deskripsi Singkat</label>
-            <textarea required value={sliderForm.desc} onChange={(e) => setSliderForm({...sliderForm, desc: e.target.value})} className="w-full bg-[#111827] border border-white/10 rounded-xl py-2.5 px-4 text-sm text-white focus:outline-none focus:border-[var(--color-primary)] h-20 resize-none" placeholder="Isi deskripsi banner..." />
-          </div>
-          <div className="pt-4 flex gap-3">
-            <button type="button" onClick={() => setIsSliderModalOpen(false)} className="flex-1 py-3 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-colors">Batal</button>
-            <button type="submit" className="flex-1 py-3 rounded-xl bg-[var(--color-primary)] text-black font-bold text-sm flex items-center justify-center gap-2 hover:bg-yellow-500 transition-all">
-              <Save className="w-4 h-4" /> {editingSlider ? "Simpan Perubahan" : "Terbitkan"}
-            </button>
-          </div>
+             ) : (
+                <div className="space-y-3">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-white/40 block">Youtube / G-Drive URL</label>
+                   <input type="url" required value={sliderForm.video_url} onChange={(e) => setSliderForm({...sliderForm, video_url: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-emerald-500" placeholder="https://..." />
+                </div>
+             )}
+             
+             <div>
+               <label className="text-[10px] font-black uppercase tracking-widest text-white/40 block mb-1">Title</label>
+               <input type="text" required value={sliderForm.title} onChange={(e) => setSliderForm({...sliderForm, title: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-blue-500" />
+             </div>
+             <div>
+               <label className="text-[10px] font-black uppercase tracking-widest text-white/40 block mb-1">Subtitle</label>
+               <input type="text" required value={sliderForm.subtitle} onChange={(e) => setSliderForm({...sliderForm, subtitle: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-blue-500" />
+             </div>
+             <div>
+               <label className="text-[10px] font-black uppercase tracking-widest text-white/40 block mb-1">Description</label>
+               <textarea required value={sliderForm.description} onChange={(e) => setSliderForm({...sliderForm, description: e.target.value})} className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:border-blue-500 h-20 resize-none" />
+             </div>
+           </div>
+
+           <div className="pt-2 flex gap-3">
+             <button type="button" onClick={() => setIsSliderModalOpen(false)} className="flex-1 py-3 px-4 rounded-xl border border-white/10 font-bold text-xs uppercase tracking-widest text-white/60 hover:bg-white/5 transition-colors">Cancel</button>
+             <button type="submit" className="flex-1 py-3 px-4 rounded-xl bg-blue-600 font-bold text-xs uppercase tracking-widest text-white hover:bg-blue-500 flex items-center justify-center gap-2 transition-colors"><Save className="w-4 h-4"/> Save</button>
+           </div>
         </form>
       </Modal>
 
@@ -438,7 +515,7 @@ export default function Dashboard() {
         isOpen={deleteConfirm.isOpen}
         onClose={() => setDeleteConfirm({ isOpen: false, id: '' })}
         onConfirm={() => deleteItem(deleteConfirm.id)}
-        message={`Yakin ingin menghapus banner ini?`}
+        message={`Delete banner?`}
       />
     </Layout>
   );
